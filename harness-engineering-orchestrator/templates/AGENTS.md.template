@@ -92,7 +92,7 @@ Git hooks, Claude Code hooks, and Codex CLI hooks automatically enforce Guardian
 - **Codex CLI**: execpolicy rules block `--no-verify`, `git add .`, `git add -A`; notification hooks run post-task validation
 - **Emergency bypass**: `HARNESS_HOOKS_SKIP=1 git commit ...`
 
-Re-install hooks after cloning (regenerates git hooks, Claude Code settings, and Codex CLI config): `bun harness:hooks:install`
+Re-install after cloning (restores local Harness files, git hooks, Claude Code settings, and Codex CLI config): `bun harness:hooks:install`
 
 ---
 

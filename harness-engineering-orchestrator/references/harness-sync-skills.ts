@@ -2,6 +2,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "fs"
 import { getManagedSkillSpecs, syncManagedFiles } from "./runtime/generated-files"
+import { syncLocalBootstrapManifest } from "./runtime/local-bootstrap"
 import { readState, writeState } from "./runtime/state-core"
 import { hasAgentSurface } from "./runtime/surfaces"
 
@@ -22,6 +23,7 @@ if (!existsSync("packages/shared/api/README.md")) {
 
 const results = syncManagedFiles(getManagedSkillSpecs(state))
 writeState(state)
+syncLocalBootstrapManifest()
 
 const changed = results.filter(result => result.changed).length
 console.log(`✅ sync-skills complete (${changed}/${results.length} file(s) changed)`)

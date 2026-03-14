@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, chmodS
 import { initState } from "../../references/harness-init"
 import { ensureEnvLocalSkeleton } from "../../references/runtime/env-local"
 import { getManagedDocSpecs, getManagedSkillSpecs, syncManagedFiles } from "../../references/runtime/generated-files"
+import { syncLocalBootstrapManifest } from "../../references/runtime/local-bootstrap"
 import { HARNESS_CRITICAL_TOTAL } from "../../references/runtime/shared"
 import { CODEX_CONFIG_TOML, CODEX_GUARDIAN_RULES } from "../../references/runtime/hooks/codex-config"
 import type { GitHubState } from "../../references/harness-types"
@@ -13,6 +14,7 @@ import {
   readTemplate,
   type Context,
   type SetupLogger,
+  normalizeTextFileContent,
   writeFileAlways,
   writeFileIfMissing,
   writeTemplateTree,
@@ -39,7 +41,7 @@ function copyDirectory(sourceDir: string, targetDir: string): void {
       copyDirectory(sourcePath, targetPath)
     } else {
       mkdirSync(targetDir, { recursive: true })
-      writeFileSync(targetPath, readFileSync(sourcePath, "utf-8"))
+      writeFileSync(targetPath, normalizeTextFileContent(readFileSync(sourcePath, "utf-8")))
     }
   }
 }
@@ -251,6 +253,7 @@ function writeCoreFiles({ context, skillRoot, logger }: SetupParams): void {
   writeTemplateTree(skillRoot, context, "docs", "docs", logger, relativePath =>
     context.isUiProject || relativePath !== "design/DESIGN_SYSTEM.md.template",
   )
+  writeTemplateTree(skillRoot, context, "scripts", "scripts", logger)
   writeTemplateTree(skillRoot, context, "src", "src", logger)
   writeTemplateTree(skillRoot, context, "tests", "tests", logger)
 
@@ -405,7 +408,7 @@ function updatePackageJson(logger: SetupLogger): void {
     "harness:compact": "bun .harness/compact.ts",
     "harness:compact:milestone": "bun .harness/compact.ts --milestone",
     "harness:compact:status": "bun .harness/compact.ts --status",
-    "harness:hooks:install": "bun .harness/runtime/hooks/install-git-hooks.ts",
+    "harness:hooks:install": "bun scripts/harness-local/restore.ts",
   }
   pkg.packageManager = pkg.packageManager ?? "bun@latest"
 
@@ -817,6 +820,10 @@ function syncManagedArtifacts(logger: SetupLogger): void {
   syncManagedFiles(getManagedDocSpecs(state))
   syncManagedFiles(getManagedSkillSpecs(state))
   ensureEnvLocalSkeleton(state)
+  const manifest = syncLocalBootstrapManifest()
+  logger.log(
+    `${manifest.changed ? "Updated" : "Verified"} ${manifest.path} (${manifest.fileCount} local file(s) captured)`,
+  )
   logger.log("Managed docs and skills synchronized")
 }
 

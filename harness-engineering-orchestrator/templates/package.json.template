@@ -1,7 +1,7 @@
 {
-  "name": "[PROJECT_NAME]",
+  "name": [PROJECT_NAME_JSON],
   "version": "0.1.0",
-  "description": "[PROJECT_DESCRIPTION]",
+  "description": [PROJECT_DESCRIPTION_JSON],
   "private": true,
   "type": "module",
   "packageManager": "bun@latest",

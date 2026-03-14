@@ -1,7 +1,0 @@
-{
-  "name": "@detailed-cli/cli",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "description": "Detailed CLI cli workspace."
-}

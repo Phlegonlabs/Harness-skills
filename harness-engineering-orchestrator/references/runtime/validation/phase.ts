@@ -12,7 +12,7 @@ import {
   STATE_PATH,
   isUiProject,
 } from "../shared"
-import { fileHash, runBun, runGit } from "./helpers"
+import { filesShareHash, runBun, runGit } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { computeHarnessScore } from "./milestone-score"
 import { getAllAgentEntries } from "../orchestrator/agent-registry"
@@ -164,7 +164,7 @@ export async function validatePhaseGate(
     case "EXECUTING": {
       check(existsSync("AGENTS.md"), "AGENTS.md is present")
       check(existsSync("CLAUDE.md"), "CLAUDE.md is present")
-      check(fileHash("AGENTS.md") === fileHash("CLAUDE.md"), "AGENTS.md == CLAUDE.md (same hash) [G8]")
+      check(filesShareHash("AGENTS.md", "CLAUDE.md"), "AGENTS.md == CLAUDE.md (same hash) [G8]")
       check(existsSync(STATE_PATH), ".harness/state.json is present")
       check(existsSync(".github/workflows/ci.yml"), "CI workflow is present")
       check(documentExists(PROGRESS_PATH, PROGRESS_DIR), "docs/PROGRESS.md or docs/progress/ is present")
@@ -178,10 +178,13 @@ export async function validatePhaseGate(
       check(existsSync(".harness/sync-docs.ts"), ".harness/sync-docs.ts is present")
       check(existsSync(".harness/sync-skills.ts"), ".harness/sync-skills.ts is present")
       check(existsSync(".harness/api-add.ts"), ".harness/api-add.ts is present")
+      check(existsSync("scripts/harness-local/restore.ts"), "scripts/harness-local/restore.ts is present")
+      check(existsSync("scripts/harness-local/manifest.json"), "scripts/harness-local/manifest.json is present")
       check(packageJsonHasScript("harness:advance"), "package.json includes harness:advance")
       check(packageJsonHasScript("harness:add-surface"), "package.json includes harness:add-surface")
       check(packageJsonHasScript("harness:autoflow"), "package.json includes harness:autoflow")
       check(packageJsonHasScript("harness:audit"), "package.json includes harness:audit")
+      check(packageJsonHasScript("harness:hooks:install"), "package.json includes harness:hooks:install")
       check(packageJsonHasScript("harness:sync-docs"), "package.json includes harness:sync-docs")
       check(packageJsonHasScript("harness:sync-skills"), "package.json includes harness:sync-skills")
       check(packageJsonHasScript("harness:api:add"), "package.json includes harness:api:add")

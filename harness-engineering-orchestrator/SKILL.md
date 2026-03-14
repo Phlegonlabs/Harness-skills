@@ -335,7 +335,7 @@ bun harness:compact                         # Generate context snapshot
 bun .harness/orchestrator.ts                # Dispatch the next agent (status/next also work)
 bun .harness/orchestrator.ts --review       # Dispatch Design Reviewer (UI tasks)
 bun .harness/orchestrator.ts --code-review  # Dispatch Code Reviewer (non-UI tasks)
-bun harness:hooks:install                   # Re-install git hooks, Claude Code settings, and Codex CLI config
+bun harness:hooks:install                   # Restore local Harness files, then re-install git hooks, Claude Code settings, and Codex CLI config
 bun harness:add-surface --type=<TYPE>       # Add a new project surface (e.g. api, android-app)
 bun harness:audit                           # Full audit: guardians, phase gate, workspace, docs drift
 bun harness:sync-docs                       # Synchronize managed documentation files

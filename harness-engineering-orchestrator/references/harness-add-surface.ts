@@ -3,6 +3,7 @@
 import { addSurfaceToState } from "./runtime/automation"
 import { ensureEnvLocalSkeleton } from "./runtime/env-local"
 import { getManagedDocSpecs, getManagedSkillSpecs, syncManagedFiles } from "./runtime/generated-files"
+import { syncLocalBootstrapManifest } from "./runtime/local-bootstrap"
 import { readState, writeState } from "./runtime/state-core"
 import { validatePhaseGate } from "./runtime/validation/phase"
 
@@ -61,6 +62,7 @@ syncManagedFiles(getManagedDocSpecs(result.state))
 syncManagedFiles(getManagedSkillSpecs(result.state))
 const updated = writeState(result.state)
 ensureEnvLocalSkeleton(updated)
+syncLocalBootstrapManifest()
 
 const validationPhase: "SCAFFOLD" | "EXECUTING" =
   ["EXECUTING", "VALIDATING", "COMPLETE"].includes(updated.phase) ? "EXECUTING" : "SCAFFOLD"

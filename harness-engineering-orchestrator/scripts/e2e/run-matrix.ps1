@@ -139,6 +139,26 @@ function Add-DeepResult {
   }) | Out-Null
 }
 
+function Copy-TrackedHarnessFixture {
+  param(
+    [string]$SourceDir,
+    [string]$DestinationDir
+  )
+
+  if (Test-Path $DestinationDir) {
+    throw "Destination already exists: $DestinationDir"
+  }
+
+  New-Item -ItemType Directory -Path $DestinationDir | Out-Null
+  robocopy $SourceDir $DestinationDir /E `
+    /XD .git .harness .claude .codex node_modules agents skills docs\ai docs\progress `
+    /XF AGENTS.md CLAUDE.md SKILLS.md .env.local docs\PROGRESS.md `
+    /NJH /NJS /NFL /NDL | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "robocopy failed with exit code $LASTEXITCODE"
+  }
+}
+
 function Test-ScaffoldContract {
   param(
     [string]$CaseId,
@@ -149,6 +169,9 @@ function Test-ScaffoldContract {
   $workspaceMap = @{
     "web-app" = "web"
     "ios-app" = "ios"
+    "android-app" = "android"
+    "api" = "api"
+    "mobile-cross-platform" = "mobile"
     "cli" = "cli"
     "agent" = "agent"
     "desktop" = "desktop"
@@ -183,6 +206,7 @@ function Test-ScaffoldContract {
     ".harness/sync-skills.ts",
     ".harness/state.ts",
     ".dependency-cruiser.cjs",
+    ".claude/settings.local.json",
     "agents/project-discovery.md",
     "agents/market-research.md",
     "agents/tech-stack-advisor.md",
@@ -200,7 +224,9 @@ function Test-ScaffoldContract {
     "agents/orchestrator.md",
     "agents/context-compactor.md",
     ".codex/config.toml",
-    ".codex/rules/guardian.rules"
+    ".codex/rules/guardian.rules",
+    "scripts/harness-local/restore.ts",
+    "scripts/harness-local/manifest.json"
   )
   foreach ($workspace in $workspaceApps) {
     $requiredPaths += "apps/$workspace/package.json"
@@ -220,6 +246,7 @@ function Test-ScaffoldContract {
     "harness:add-surface",
     "harness:autoflow",
     "harness:audit",
+    "harness:hooks:install",
     "harness:sync-docs",
     "harness:sync-skills",
     "harness:api:add",
@@ -581,6 +608,7 @@ foreach ($case in $Cases) {
   if (($steps | Where-Object { -not $_.Ok }).Count -eq 0) {
     foreach ($commandSpec in @(
       @{ Step = "install"; Expect = "pass"; Exe = "bun"; Args = @("install") },
+      @{ Step = "hooks-install"; Expect = "pass"; Exe = "bun"; Args = @("run", "harness:hooks:install") },
       @{ Step = "env"; Expect = "pass"; Exe = "bun"; Args = @("harness:env") },
       @{ Step = "init-base"; Expect = "pass"; Exe = "bun"; Args = @(".harness/init.ts") },
       @{ Step = "init-from-prd"; Expect = "pass"; Exe = "bun"; Args = @(".harness/init.ts", "--from-prd") },
@@ -600,7 +628,7 @@ foreach ($case in $Cases) {
     )) {
       $step = Invoke-Step -CaseId $case.Id -StepName $commandSpec.Step -WorkingDir $caseDir -Exe $commandSpec.Exe -Arguments $commandSpec.Args -ExpectFailure:([bool]$commandSpec.ExpectFailure)
       if ($commandSpec.Step -eq "orch-default") {
-        $isUi = ($case.Types | Where-Object { $_ -in @("web-app", "ios-app", "desktop") }).Count -gt 0
+        $isUi = ($case.Types | Where-Object { $_ -in @("web-app", "ios-app", "android-app", "mobile-cross-platform", "desktop") }).Count -gt 0
         if ($isUi) {
           $step.Ok = $step.Ok -and
             $step.Output.Contains("Harness Orchestrator") -and
@@ -769,7 +797,7 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
   $gitTaskAdd = Invoke-Step -CaseId "03-cli" -StepName "happy-task-add" -WorkingDir $CliDir -Exe "git" -Arguments @("add", ".")
   Add-DeepResult -CaseId "03-cli" -Scenario "happy path task add" -Expected "git add ok" -Step $gitTaskAdd
 
-  $gitCommitStep = Invoke-Step -CaseId "03-cli" -StepName "happy-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("commit", "-m", "feat: complete T001")
+  $gitCommitStep = Invoke-Step -CaseId "03-cli" -StepName "happy-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("commit", "-m", "feat: complete T001", "-m", "Code Review: ✅")
   Add-DeepResult -CaseId "03-cli" -Scenario "happy path git commit" -Expected "task commit" -Step $gitCommitStep
 
   if ($gitCommitStep.Ok) {
@@ -962,6 +990,33 @@ if ((Test-Path $ComboDir) -and $ComboSmoke -and $ComboSmoke.SmokePassed) {
   $auditStep = Invoke-Step -CaseId "07-combo" -StepName "combo-audit" -WorkingDir $ComboDir -Exe "bun" -Arguments @("run", "harness:audit")
   $auditStep.Ok = $auditStep.Ok -and (Test-Path (Join-Path $ComboDir ".harness\reports\audit-latest.md"))
   Add-DeepResult -CaseId "07-combo" -Scenario "combo audit" -Expected "audit report generated" -Step $auditStep
+}
+
+if ((Test-Path $WebDir) -and $WebSmoke -and $WebSmoke.SmokePassed) {
+  $cloneDir = Join-Path $RunRoot "clone-recovery-web"
+  Copy-TrackedHarnessFixture -SourceDir $WebDir -DestinationDir $cloneDir
+
+  $cloneGitInit = Invoke-Step -CaseId "10-recovery" -StepName "clone-git-init" -WorkingDir $cloneDir -Exe "git" -Arguments @("init", "-b", "main")
+  Add-DeepResult -CaseId "10-recovery" -Scenario "clone recovery git init" -Expected "git init ok" -Step $cloneGitInit
+
+  $cloneInstall = Invoke-Step -CaseId "10-recovery" -StepName "clone-install" -WorkingDir $cloneDir -Exe "bun" -Arguments @("install")
+  Add-DeepResult -CaseId "10-recovery" -Scenario "clone recovery install" -Expected "bun install ok" -Step $cloneInstall
+
+  $cloneHooks = Invoke-Step -CaseId "10-recovery" -StepName "clone-hooks-install" -WorkingDir $cloneDir -Exe "bun" -Arguments @("run", "harness:hooks:install")
+  $cloneHooks.Ok = $cloneHooks.Ok `
+    -and (Test-Path (Join-Path $cloneDir "AGENTS.md")) `
+    -and (Test-Path (Join-Path $cloneDir "CLAUDE.md")) `
+    -and (Test-Path (Join-Path $cloneDir ".harness\state.json")) `
+    -and (Test-Path (Join-Path $cloneDir "agents\project-discovery.md")) `
+    -and (Test-Path (Join-Path $cloneDir "docs\ai\01-operating-principles.md")) `
+    -and (Test-Path (Join-Path $cloneDir "docs\PROGRESS.md")) `
+    -and (Test-Path (Join-Path $cloneDir ".claude\settings.local.json")) `
+    -and (Test-Path (Join-Path $cloneDir ".codex\config.toml")) `
+    -and (Test-Path (Join-Path $cloneDir ".env.local"))
+  Add-DeepResult -CaseId "10-recovery" -Scenario "clone recovery restore locals" -Expected "local harness files restored" -Step $cloneHooks
+
+  $cloneValidate = Invoke-Step -CaseId "10-recovery" -StepName "clone-validate-executing" -WorkingDir $cloneDir -Exe "bun" -Arguments @("harness:validate", "--phase", "EXECUTING")
+  Add-DeepResult -CaseId "10-recovery" -Scenario "clone recovery phase gate" -Expected "EXECUTING gate passes after restore" -Step $cloneValidate
 }
 
 if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {

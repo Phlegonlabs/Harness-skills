@@ -3,6 +3,7 @@
 import { createApiWrapperService } from "./runtime/automation"
 import { readState, writeState } from "./runtime/state-core"
 import { getManagedSkillSpecs, syncManagedFiles } from "./runtime/generated-files"
+import { syncLocalBootstrapManifest } from "./runtime/local-bootstrap"
 
 function getArg(flag: string): string | undefined {
   const args = process.argv.slice(2)
@@ -33,5 +34,6 @@ const state = readState()
 const result = createApiWrapperService(state, name, source, spec)
 syncManagedFiles(getManagedSkillSpecs(state))
 writeState(state)
+syncLocalBootstrapManifest()
 
 console.log(`✅ api wrapper ${result.created ? "created" : "already present"}: ${result.path}`)

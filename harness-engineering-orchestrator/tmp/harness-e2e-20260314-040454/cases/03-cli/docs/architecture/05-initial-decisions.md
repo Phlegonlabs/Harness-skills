@@ -1,8 +1,0 @@
-## 5. Initial Decisions
-
-- Use Bun as the single package manager
-- Use `.harness/*.ts` as the local runtime instead of relying on external skill paths
-- Organize PRD, Architecture, Progress, and AI operating rules using thin entry points + module directories
-- All generated files prioritize being executable, not merely described in documentation
-- Preserve existing repo structure where it aligns with the Harness flow; rewrite only where the current structure blocks milestones or validation
-- Initial detected scripts: No package scripts were detected yet.

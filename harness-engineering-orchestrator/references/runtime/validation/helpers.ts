@@ -93,6 +93,13 @@ export function fileHash(path: string): string {
   return createHash("md5").update(readFileSync(path)).digest("hex")
 }
 
+export function filesShareHash(...paths: string[]): boolean {
+  if (paths.length < 2 || paths.some(path => !existsSync(path))) return false
+
+  const [first, ...rest] = paths.map(fileHash)
+  return rest.every(hash => hash === first)
+}
+
 export async function runBun(args: string[]): Promise<{ ok: boolean; output: string }> {
   try {
     const proc = Bun.spawn(["bun", ...args], { stdout: "pipe", stderr: "pipe" })

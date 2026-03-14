@@ -13,7 +13,7 @@ import {
 } from "../shared"
 import {
   countLines,
-  fileHash,
+  filesShareHash,
   findFiles,
   findForbiddenPatternHits,
   FORBIDDEN_PATTERN_RULES,
@@ -81,7 +81,7 @@ export async function validateMilestone(
     }
   }
 
-  if (fileHash("AGENTS.md") === fileHash("CLAUDE.md") && existsSync("CLAUDE.md")) {
+  if (filesShareHash("AGENTS.md", "CLAUDE.md")) {
     reporter.pass("AGENTS.md == CLAUDE.md [G8]")
   } else {
     reporter.failSoft("AGENTS.md ≠ CLAUDE.md [G8]", "Synchronize CLAUDE.md so it matches AGENTS.md exactly")
@@ -123,7 +123,7 @@ export function computeHarnessScore(state: ProjectState): {
   const items: [boolean, string][] = [
     [existsSync("AGENTS.md"), "AGENTS.md is present"],
     [existsSync("CLAUDE.md"), "CLAUDE.md is present"],
-    [fileHash("AGENTS.md") === fileHash("CLAUDE.md") && existsSync("AGENTS.md") && existsSync("CLAUDE.md"), "AGENTS.md == CLAUDE.md [G8]"],
+    [filesShareHash("AGENTS.md", "CLAUDE.md"), "AGENTS.md == CLAUDE.md [G8]"],
     [documentExists(PRD_PATH, PRD_DIR), "docs/PRD.md or docs/prd/ is present"],
     [documentExists(ARCHITECTURE_PATH, ARCHITECTURE_DIR), "docs/ARCHITECTURE.md or docs/architecture/ is present"],
     [documentExists(PROGRESS_PATH, PROGRESS_DIR), "docs/PROGRESS.md or docs/progress/ is present"],

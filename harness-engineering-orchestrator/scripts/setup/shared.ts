@@ -458,6 +458,10 @@ export function ensureDirForFile(path: string): void {
   if (dir !== ".") mkdirSync(dir, { recursive: true })
 }
 
+export function normalizeTextFileContent(content: string): string {
+  return content.replace(/\r\n/g, "\n")
+}
+
 export function writeFileIfMissing(path: string, content: string, logger: SetupLogger): void {
   if (existsSync(path)) {
     logger.warn(`${path} already exists, skipping`)
@@ -465,13 +469,13 @@ export function writeFileIfMissing(path: string, content: string, logger: SetupL
   }
 
   ensureDirForFile(path)
-  writeFileSync(path, content)
+  writeFileSync(path, normalizeTextFileContent(content))
   logger.log(`Generated ${path}`)
 }
 
 export function writeFileAlways(path: string, content: string, logger: SetupLogger): void {
   ensureDirForFile(path)
-  writeFileSync(path, content)
+  writeFileSync(path, normalizeTextFileContent(content))
   logger.log(`Updated ${path}`)
 }
 
@@ -532,6 +536,10 @@ ${workspaceSection}
 │   ├── resume.ts
 │   ├── runtime/
 │   └── state.json
+├── scripts/
+│   └── harness-local/
+│       ├── restore.ts
+│       └── manifest.json
 ├── .dependency-cruiser.cjs
 ├── bunfig.toml
 ├── src/
@@ -547,18 +555,31 @@ ${workspaceSection}
 export function renderPlaceholders(content: string, context: Context): string {
   const replacements: Record<string, string> = {
     PROJECT_NAME: context.projectName,
+    PROJECT_NAME_JSON: JSON.stringify(context.projectName),
     PROJECT_DISPLAY_NAME: context.projectDisplayName,
+    PROJECT_DISPLAY_NAME_JSON: JSON.stringify(context.projectDisplayName),
     PROJECT_TYPE: context.projectTypeLabel,
+    PROJECT_TYPE_JSON: JSON.stringify(context.projectTypeLabel),
     PROJECT_TYPES: context.projectTypes.join(", "),
+    PROJECT_TYPES_JSON: JSON.stringify(context.projectTypes.join(", ")),
     PROJECT_DESCRIPTION: context.projectDescription,
+    PROJECT_DESCRIPTION_JSON: JSON.stringify(context.projectDescription),
     PROJECT_CONCEPT: context.projectConcept,
+    PROJECT_CONCEPT_JSON: JSON.stringify(context.projectConcept),
     PROJECT_PROBLEM: context.projectProblem,
+    PROJECT_PROBLEM_JSON: JSON.stringify(context.projectProblem),
     PROJECT_GOAL: context.projectGoal,
+    PROJECT_GOAL_JSON: JSON.stringify(context.projectGoal),
     AI_PROVIDER: context.aiProviderLabel,
+    AI_PROVIDER_JSON: JSON.stringify(context.aiProviderLabel),
     TEAM_SIZE: context.teamSizeLabel,
+    TEAM_SIZE_JSON: JSON.stringify(context.teamSizeLabel),
     GREENFIELD_MODE: context.greenfieldLabel,
+    GREENFIELD_MODE_JSON: JSON.stringify(context.greenfieldLabel),
     DESIGN_STYLE: context.designStyleLabel,
+    DESIGN_STYLE_JSON: JSON.stringify(context.designStyleLabel),
     DESIGN_REFERENCE: context.designReference,
+    DESIGN_REFERENCE_JSON: JSON.stringify(context.designReference),
     YOUR_NAME: context.userName,
     USER_NAME: context.userName,
     ORG: context.org,

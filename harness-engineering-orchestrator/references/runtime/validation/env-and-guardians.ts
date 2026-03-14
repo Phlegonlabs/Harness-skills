@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs"
 import {
   commandExists,
   countLines,
-  fileHash,
+  filesShareHash,
   findFiles,
   findForbiddenPatternHits,
   FORBIDDEN_PATTERN_RULES,
@@ -101,7 +101,7 @@ export async function validateGuardians(reporter: ValidationReporter): Promise<v
   }
 
   if (existsSync("AGENTS.md") && existsSync("CLAUDE.md")) {
-    if (fileHash("AGENTS.md") === fileHash("CLAUDE.md")) {
+    if (filesShareHash("AGENTS.md", "CLAUDE.md")) {
       reporter.pass("G8 ✓ AGENTS.md and CLAUDE.md are synchronized")
     } else {
       reporter.failSoft("G8 ✗ AGENTS.md and CLAUDE.md differ", "Synchronize CLAUDE.md so it matches AGENTS.md exactly")

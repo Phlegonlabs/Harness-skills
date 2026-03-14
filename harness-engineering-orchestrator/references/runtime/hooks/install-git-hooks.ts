@@ -1,6 +1,6 @@
 /**
- * Install git hook shims, Claude Code settings, and Codex CLI config.
- * Run after cloning: bun harness:hooks:install
+ * Install git hook shims and Codex CLI config when .harness/ already exists.
+ * For full clone recovery, prefer: bun harness:hooks:install
  */
 
 import { existsSync, mkdirSync, writeFileSync, chmodSync } from "fs"

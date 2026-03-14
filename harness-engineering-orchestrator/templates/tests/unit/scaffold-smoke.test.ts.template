@@ -4,7 +4,7 @@ import { getScaffoldSummary } from "../../src/app/index";
 test("scaffold summary exposes project metadata", () => {
   const summary = getScaffoldSummary();
 
-  expect(summary.name).toBe("[PROJECT_NAME]");
+  expect(summary.name).toBe([PROJECT_NAME_JSON]);
   expect(summary.projectType).toContain("Monorepo");
   expect(summary.projectType.length).toBeGreaterThan(0);
   expect(summary.description.length).toBeGreaterThan(0);

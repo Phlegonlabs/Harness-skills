@@ -4,10 +4,15 @@ export interface ScaffoldSummary {
   description: string;
 }
 
+const scaffoldDescription = [
+  [PROJECT_DISPLAY_NAME_JSON],
+  " prepared with the Harness Engineering and Orchestrator workflow.",
+].join("");
+
 export const scaffoldSummary: ScaffoldSummary = {
-  name: "[PROJECT_NAME]",
-  projectType: "[PROJECT_TYPE]",
-  description: "[PROJECT_DESCRIPTION]",
+  name: [PROJECT_NAME_JSON],
+  projectType: [PROJECT_TYPE_JSON],
+  description: scaffoldDescription,
 };
 
 export function getScaffoldSummary(): ScaffoldSummary {
