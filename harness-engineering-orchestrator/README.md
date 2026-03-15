@@ -84,6 +84,53 @@ Commands below are run from the managed project checkout unless noted otherwise.
 | `bun harness:merge-milestone M1` | Manual fallback when autoflow is not used | Merge one `REVIEW` milestone and run milestone compact |
 | `bun harness:compact` / `bun harness:compact --status` | Context management and closeout | Generate or inspect compact snapshots |
 
+## 10-Step Operator Guide
+
+Use this as the practical runbook from project start to project finish.
+
+1. Bootstrap the repo.
+   - New repo: `bun <path-to-skill>/scripts/harness-setup.ts`
+   - Existing repo: `bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true`
+
+2. Complete discovery and early planning phases in order.
+   - Move through `DISCOVERY`, `MARKET_RESEARCH`, and `TECH_STACK`
+   - At each boundary, run `bun harness:validate --phase <NEXT_PHASE>` and then `bun harness:advance`
+
+3. Write the real PRD and Architecture.
+   - Fill `docs/PRD.md` and `docs/ARCHITECTURE.md` with real project content
+   - Remove scaffold placeholder content before trying to enter execution
+
+4. Finish scaffold and enter execution.
+   - Make sure runtime files, CI, env skeleton, and local Harness files are present
+   - Run `bun install`
+   - Run `bun harness:advance` to derive the execution backlog from the active stage in the PRD
+
+5. Use the orchestrator as the control tower.
+   - Run `bun .harness/orchestrator.ts`
+   - Follow the dispatched agent or manual next action instead of guessing the next step
+
+6. Execute one task at a time.
+   - The current task must match its `prdRef`
+   - UI tasks go through Frontend Designer -> Execution Engine -> Design Reviewer
+   - Non-UI tasks go through Execution Engine -> Code Reviewer
+
+7. Close each task with validation and one atomic commit.
+   - Run `bun harness:validate --task T[ID]`
+   - Complete the task with exactly one atomic commit containing the Task-ID and PRD mapping
+
+8. Close one milestone at a time.
+   - When a milestone reaches `REVIEW`, run `bun harness:autoflow`
+   - Autoflow compacts the milestone, merges it, cleans up the worktree, and moves to the next milestone or stop point
+
+9. Stop at deploy review when the current version is done.
+   - When all milestones in the current `ACTIVE` stage are merged, the stage becomes `DEPLOY_REVIEW`
+   - Deploy and test the version in the real environment before starting the next version
+
+10. Continue the current version or promote the next one.
+   - If scope changed inside the current active version: update PRD / Architecture, then run `bun harness:sync-backlog`
+   - If `V1` is done and `V2` is ready: update the main PRD / Architecture to the next version, then run `bun harness:stage --promote V2`
+   - If there is no next version left: finish validation and close out the project
+
 ## Core Documents
 
 | File | Owner | Purpose |
