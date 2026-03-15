@@ -2,6 +2,8 @@
 
 ```bash
 bun harness:advance
+bun harness:stage --status
+bun harness:stage --promote V2
 bun .harness/init.ts --from-prd
 bun harness:sync-backlog
 bun .harness/state.ts --show

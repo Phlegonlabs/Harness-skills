@@ -166,11 +166,31 @@ export type MilestoneStatus =
 export interface Milestone {
   id: string            // e.g. "M1"
   name: string
+  productStageId: string // e.g. "V1"
   branch: string        // e.g. "milestone/m1-foundation"
   worktreePath: string  // e.g. "../my-app-m1"
   status: MilestoneStatus
   tasks: Task[]
   mergeCommit?: string
+  completedAt?: string
+}
+
+export type ProductStageStatus =
+  | "ACTIVE"
+  | "DEFERRED"
+  | "DEPLOY_REVIEW"
+  | "COMPLETED"
+
+export interface ProductStage {
+  id: string
+  name: string
+  status: ProductStageStatus
+  milestoneIds: string[]
+  prdVersion?: string
+  architectureVersion?: string
+  promotedAt?: string
+  deployReviewStartedAt?: string
+  deployReviewedAt?: string
   completedAt?: string
 }
 
@@ -186,6 +206,7 @@ export interface HarnessDocuments {
   architecture: {
     path: "docs/ARCHITECTURE.md"
     exists: boolean
+    version: string       // e.g. "v1.2"
     dependencyLayers: string[]
     ciValidated: boolean  // dependency-cruiser runs in CI
   }
@@ -250,6 +271,11 @@ export interface ExecutionState {
   allMilestonesComplete: boolean
 }
 
+export interface ProductRoadmapState {
+  currentStageId: string
+  stages: ProductStage[]
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 export interface ValidationState {
@@ -278,6 +304,7 @@ export interface ProjectState {
   techStack: TechStack
   docs: HarnessDocuments
   scaffold: ScaffoldState
+  roadmap: ProductRoadmapState
   execution: ExecutionState
   validation: ValidationState
   github: GitHubState
@@ -322,6 +349,14 @@ export interface AgentPacketMilestone {
   status: MilestoneStatus
 }
 
+export interface AgentPacketStage {
+  architectureVersion?: string
+  id: string
+  name: string
+  prdVersion?: string
+  status: ProductStageStatus
+}
+
 export interface AgentPacketTask {
   affectedFiles: string[]
   id: string
@@ -337,12 +372,15 @@ export interface AgentTaskPacket {
   agentId: AgentId
   agentName: string
   afterCompletion: string[]
+  architectureVersion: string
   currentMilestone?: AgentPacketMilestone
+  currentStage?: AgentPacketStage
   currentTask?: AgentPacketTask
   inlineConstraints: string[]
   missingOutputs: string[]
   optionalRefs: string[]
   phase: Phase
+  prdVersion: string
   requiredOutputs: string[]
   requiredRefs: string[]
   specPath: string

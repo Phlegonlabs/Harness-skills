@@ -24,6 +24,19 @@ test("progress docs record task lifecycle details and activity log", () => {
   state.phase = "EXECUTING"
   state.projectInfo.name = "progress-fixture"
   state.projectInfo.displayName = "Progress Fixture"
+  state.docs.prd.version = "v1.0"
+  state.docs.architecture.version = "v1.0"
+  state.roadmap.currentStageId = "V1"
+  state.roadmap.stages = [
+    {
+      id: "V1",
+      name: "Initial Delivery",
+      status: "ACTIVE",
+      milestoneIds: ["M1"],
+      prdVersion: "v1.0",
+      architectureVersion: "v1.0",
+    },
+  ]
   state.execution.currentMilestone = "M1"
   state.execution.currentTask = "T102"
   state.execution.currentWorktree = "../progress-fixture-m1"
@@ -32,6 +45,7 @@ test("progress docs record task lifecycle details and activity log", () => {
     {
       id: "M1",
       name: "Foundation",
+      productStageId: "V1",
       branch: "milestone/m1-foundation",
       worktreePath: "../progress-fixture-m1",
       status: "IN_PROGRESS",
@@ -84,7 +98,8 @@ test("progress docs record task lifecycle details and activity log", () => {
 
   syncProgressDocuments(state)
 
-  expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("7. [07 Activity](./progress/07-activity.md)")
+  expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("8. [08 Roadmap](./progress/08-roadmap.md)")
+  expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("Current Product Stage")
 
   const backlog = readFileSync("docs/progress/03-backlog.md", "utf-8")
   expect(backlog).toContain("[~] T102: Build current feature")
@@ -100,4 +115,7 @@ test("progress docs record task lifecycle details and activity log", () => {
   expect(activity).toContain("T103 became BLOCKED")
   expect(activity).toContain("T102 entered IN_PROGRESS")
   expect(activity).toContain("T101 completed (abcdef1)")
+
+  const roadmap = readFileSync("docs/progress/08-roadmap.md", "utf-8")
+  expect(roadmap).toContain("V1: Initial Delivery [ACTIVE]")
 })

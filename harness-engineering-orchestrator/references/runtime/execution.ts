@@ -1,5 +1,6 @@
 import type { Milestone, Phase, ProjectState, Task, TaskChecklist } from "../types"
 import { formatAtomicCommitFailure, inspectAtomicTaskCommit } from "./atomic-commit"
+import { markStageDeployReview } from "./stages"
 import { readState, writeState } from "./state-core"
 import { mergeTaskChecklist } from "./task-checklist"
 
@@ -152,6 +153,7 @@ export function completeMilestone(milestoneId: string, mergeCommit: string): Pro
   }
 
   refreshMilestoneStatuses(state)
+  markStageDeployReview(state, milestone.productStageId)
   activateNextTask(state)
 
   const updated = writeState(state)

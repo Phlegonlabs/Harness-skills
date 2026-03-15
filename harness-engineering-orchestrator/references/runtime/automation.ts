@@ -201,6 +201,7 @@ function ensureExecutionMilestone(state: ProjectState, surface: AddableSurface, 
   if (state.phase !== "EXECUTING" && state.execution.milestones.length === 0) return
 
   const branchSlug = slugify(`${workspace}-surface`)
+  const productStageId = state.roadmap.currentStageId || "V1"
   const existing = state.execution.milestones.find(
     milestone => milestone.branch === `milestone/${branchSlug}`,
   )
@@ -211,6 +212,7 @@ function ensureExecutionMilestone(state: ProjectState, surface: AddableSurface, 
     branch: `milestone/${branchSlug}`,
     id: milestoneId,
     name: `${surfaceLabel(surface)} Expansion`,
+    productStageId,
     status: "PENDING",
     tasks: [taskForSurface(state, surface, workspace, milestoneId)],
     worktreePath: `../${state.projectInfo.name || "project"}-${branchSlug}`,

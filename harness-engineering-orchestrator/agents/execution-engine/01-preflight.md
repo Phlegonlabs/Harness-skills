@@ -19,6 +19,7 @@ Before starting any Task, confirm that state, documents, environment, and prereq
    - If the user introduced new scope, do **not** implement it yet
    - First update `docs/PRD.md` / `docs/prd/`, then run `bun harness:sync-backlog`
    - Only resume execution after the new scope exists as a milestone/task in `.harness/state.json`
+   - If the request belongs to a future delivery version (`V2+`), keep it deferred until the next version is explicitly promoted
 4. Confirm PRD and Architecture entries exist:
    - `docs/PRD.md` + `docs/prd/`
    - `docs/ARCHITECTURE.md` + `docs/architecture/`

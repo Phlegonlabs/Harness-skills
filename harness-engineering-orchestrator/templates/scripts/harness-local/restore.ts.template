@@ -92,6 +92,19 @@ function installGitHooks(): { installed: number; skipped: boolean } {
   return { installed, skipped: false }
 }
 
+function syncClaudeMirrorFromAgents(): boolean {
+  if (!existsSync("AGENTS.md")) return false
+
+  const agentsContent = normalizeText(readFileSync("AGENTS.md", "utf-8"))
+  if (existsSync("CLAUDE.md")) {
+    const claudeContent = normalizeText(readFileSync("CLAUDE.md", "utf-8"))
+    if (claudeContent === agentsContent) return false
+  }
+
+  writeFileSync("CLAUDE.md", agentsContent)
+  return true
+}
+
 function main(): void {
   const manifest = readManifest()
   const stats = { created: 0, unchanged: 0, updated: 0 }
@@ -108,6 +121,10 @@ function main(): void {
 
   if (!gitHooks.skipped) {
     writeStdout(`[harness-hooks] Reinstalled ${gitHooks.installed} git hook shim(s).`)
+  }
+
+  if (syncClaudeMirrorFromAgents()) {
+    writeStdout("[harness-hooks] Synced AGENTS.md -> CLAUDE.md (G8).")
   }
 
   writeStdout("[harness-hooks] Local Harness restore complete.")

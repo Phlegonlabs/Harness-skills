@@ -43,38 +43,43 @@ function getArgValue(flag: string): string | undefined {
 if (import.meta.main) {
   ensureProjectDirs()
 
-  if (process.argv.includes("--from-prd")) {
-    const updated = bootstrapExecutionFromPrd()
-    console.log(`✅ Created ${updated.execution.milestones.length} milestone(s) from docs/prd/ (or docs/PRD.md)`)
-    console.log(
-      `   Current task: ${updated.execution.currentTask || "—"}  |  Worktree: ${updated.execution.currentWorktree || "—"}`,
-    )
-  } else if (process.argv.includes("--sync-from-prd")) {
-    const updated = syncExecutionBacklogFromPrd()
-    console.log(
-      `✅ Synced PRD backlog: +${updated.addedMilestones} milestone(s), +${updated.addedTasks} task(s)`,
-    )
-    console.log(
-      `   Current task: ${updated.state.execution.currentTask || "—"}  |  Worktree: ${updated.state.execution.currentWorktree || "—"}`,
-    )
-  } else if (process.argv.includes("--complete-task")) {
-    const taskId = getArgValue("--complete-task")
-    const commitHash = getArgValue("--commit")
+  try {
+    if (process.argv.includes("--from-prd")) {
+      const updated = bootstrapExecutionFromPrd()
+      console.log(`✅ Created ${updated.execution.milestones.length} milestone(s) from docs/prd/ (or docs/PRD.md)`)
+      console.log(
+        `   Current task: ${updated.execution.currentTask || "—"}  |  Worktree: ${updated.execution.currentWorktree || "—"}`,
+      )
+    } else if (process.argv.includes("--sync-from-prd")) {
+      const updated = syncExecutionBacklogFromPrd()
+      console.log(
+        `✅ Synced PRD backlog: +${updated.addedStages} stage(s), +${updated.addedMilestones} milestone(s), +${updated.addedTasks} task(s)`,
+      )
+      console.log(
+        `   Current task: ${updated.state.execution.currentTask || "—"}  |  Worktree: ${updated.state.execution.currentWorktree || "—"}`,
+      )
+    } else if (process.argv.includes("--complete-task")) {
+      const taskId = getArgValue("--complete-task")
+      const commitHash = getArgValue("--commit")
 
-    if (!taskId || !commitHash) {
-      console.error("Usage: bun .harness/init.ts --complete-task T001 --commit <hash>")
-      process.exit(1)
+      if (!taskId || !commitHash) {
+        console.error("Usage: bun .harness/init.ts --complete-task T001 --commit <hash>")
+        process.exit(1)
+      }
+
+      completeTask(taskId, commitHash)
+    } else if (!existsSync(STATE_PATH)) {
+      const state = writeState(initState({}))
+      console.log("✅ .harness/state.json initialized")
+      console.log(`   Phase: ${state.phase}`)
+      console.log("   Next step: fill in projectInfo, then run bun harness:advance")
+    } else {
+      const state = writeState(readState())
+      console.log("ℹ️  .harness/state.json already exists; derived state and PROGRESS.md were synchronized")
+      console.log(`   Phase: ${state.phase}`)
     }
-
-    completeTask(taskId, commitHash)
-  } else if (!existsSync(STATE_PATH)) {
-    const state = writeState(initState({}))
-    console.log("✅ .harness/state.json initialized")
-    console.log(`   Phase: ${state.phase}`)
-    console.log("   Next step: fill in projectInfo, then run bun harness:advance")
-  } else {
-    const state = writeState(readState())
-    console.log("ℹ️  .harness/state.json already exists; derived state and PROGRESS.md were synchronized")
-    console.log(`   Phase: ${state.phase}`)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
   }
 }

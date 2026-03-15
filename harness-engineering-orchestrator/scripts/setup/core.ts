@@ -26,6 +26,13 @@ type SetupParams = {
   logger: SetupLogger
 }
 
+function syncClaudeMirrorFromAgents(logger: SetupLogger): void {
+  if (!existsSync("AGENTS.md")) return
+
+  const agentsContent = readFileSync("AGENTS.md", "utf-8")
+  writeFileAlways("CLAUDE.md", agentsContent, logger)
+}
+
 function workspacePackageName(projectName: string, workspace: string): string {
   return `@${projectName}/${workspace}`
 }
@@ -82,6 +89,7 @@ function copyHarnessRuntime(skillRoot: string, logger: SetupLogger): void {
   const entryFiles = [
     ["harness-types.ts", ".harness/types.ts"],
     ["harness-init.ts", ".harness/init.ts"],
+    ["harness-stage.ts", ".harness/stage.ts"],
     ["harness-advance.ts", ".harness/advance.ts"],
     ["harness-state.ts", ".harness/state.ts"],
     ["harness-validate.ts", ".harness/validate.ts"],
@@ -119,7 +127,9 @@ function ensureProjectStructure(logger: SetupLogger): void {
   for (const dir of [
     "docs",
     "docs/prd",
+    "docs/prd/versions",
     "docs/architecture",
+    "docs/architecture/versions",
     "docs/progress",
     "docs/ai",
     "docs/public",
@@ -230,8 +240,7 @@ function writeCoreFiles({ context, skillRoot, logger }: SetupParams): void {
   writeFileIfMissing("package.json", readTemplate(skillRoot, context, "package.json.template"), logger)
   const agents = readTemplate(skillRoot, context, "AGENTS.md.template")
   writeFileIfMissing("AGENTS.md", agents, logger)
-  const syncedAgents = existsSync("AGENTS.md") ? readFileSync("AGENTS.md", "utf-8") : agents
-  writeFileIfMissing("CLAUDE.md", syncedAgents, logger)
+  syncClaudeMirrorFromAgents(logger)
   writeFileIfMissing("README.md", readTemplate(skillRoot, context, "README.md.template"), logger)
   writeFileIfMissing(".env.example", readTemplate(skillRoot, context, "_env.example.template"), logger)
   writeFileIfMissing(
@@ -390,6 +399,7 @@ function updatePackageJson(logger: SetupLogger): void {
       "dependency-cruiser --config .dependency-cruiser.cjs src --output-type err-long",
     "harness:init": "bun .harness/init.ts",
     "harness:init:prd": "bun .harness/init.ts --from-prd",
+    "harness:stage": "bun .harness/stage.ts",
     "harness:sync-backlog": "bun .harness/init.ts --sync-from-prd",
     "harness:advance": "bun .harness/advance.ts",
     "harness:add-surface": "bun .harness/add-surface.ts",
@@ -756,6 +766,7 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
       architecture: {
         path: "docs/ARCHITECTURE.md",
         exists: true,
+        version: current?.docs.architecture.version ?? "v1.0",
         dependencyLayers:
           current?.docs.architecture.dependencyLayers?.length
             ? current.docs.architecture.dependencyLayers
@@ -799,6 +810,7 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
       depCruiserConfigured: existsSync(".dependency-cruiser.cjs"),
       githubSetup: githubResult?.repoCreated ?? current?.scaffold.githubSetup ?? false,
     },
+    roadmap: current?.roadmap ?? defaults.roadmap,
     validation: {
       ...(current?.validation ?? defaults.validation),
       criticalTotal: HARNESS_CRITICAL_TOTAL,
@@ -823,6 +835,7 @@ function syncManagedArtifacts(logger: SetupLogger): void {
   syncManagedFiles(getManagedDocSpecs(state))
   syncManagedFiles(getManagedSkillSpecs(state))
   ensureEnvLocalSkeleton(state)
+  syncClaudeMirrorFromAgents(logger)
   const manifest = syncLocalBootstrapManifest()
   logger.log(
     `${manifest.changed ? "Updated" : "Verified"} ${manifest.path} (${manifest.fileCount} local file(s) captured)`,

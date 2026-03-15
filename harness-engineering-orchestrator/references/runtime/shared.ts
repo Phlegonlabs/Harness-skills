@@ -49,10 +49,59 @@ export function readDocument(indexPath: string, dir: string): string {
   return ""
 }
 
+function parseDocumentVersion(content: string): string | undefined {
+  if (!content) return undefined
+  const match = content.match(/^\s*>\s*\*\*Version\*\*:\s*(v[0-9][^\r\n]*)$/im)
+  return match?.[1]?.trim()
+}
+
+type StageHeading = {
+  id: string
+  line: number
+  status: string
+}
+
+function parseStageHeadings(content: string): StageHeading[] {
+  return content
+    .split(/\r?\n/)
+    .flatMap((line, index) => {
+      const match = line.match(
+        /^##\s+Product Stage\s+(V\d+)\s*:\s*(.+?)(?:\s+\[(ACTIVE|DEFERRED|DEPLOY_REVIEW|COMPLETED)\])?\s*$/i,
+      )
+      if (!match) return []
+      return [
+        {
+          id: match[1]!.trim(),
+          line: index,
+          status: (match[3] ?? "").trim().toUpperCase(),
+        },
+      ]
+    })
+}
+
 export function countMilestonesFromPrd(): number {
   const content = readDocument(PRD_PATH, PRD_DIR)
   if (!content) return 0
-  return Array.from(content.matchAll(/^###\s+Milestone\b/gm)).length
+
+  const stageHeadings = parseStageHeadings(content)
+  if (stageHeadings.length === 0) {
+    return Array.from(content.matchAll(/^###\s+Milestone\b/gm)).length
+  }
+
+  const lines = content.split(/\r?\n/)
+  const activeStage =
+    stageHeadings.find(stage => stage.status === "ACTIVE")
+    ?? stageHeadings[0]
+  if (!activeStage) return 0
+
+  const nextStageLine =
+    stageHeadings.find(stage => stage.line > activeStage.line)?.line
+    ?? lines.length
+
+  return lines
+    .slice(activeStage.line + 1, nextStageLine)
+    .filter(line => /^###\s+Milestone\b/.test(line))
+    .length
 }
 
 export function collectDesignSpecs(): string[] {
@@ -105,16 +154,22 @@ export function deriveStateFromFilesystem(
 ): ProjectState {
   const next: ProjectState = JSON.parse(JSON.stringify(state)) as ProjectState
   const now = new Date().toISOString()
+  const prdContent = readDocument(PRD_PATH, PRD_DIR)
+  const architectureContent = readDocument(ARCHITECTURE_PATH, ARCHITECTURE_DIR)
+  const currentStage =
+    next.roadmap.stages.find(stage => stage.id === next.roadmap.currentStageId)
+    ?? next.roadmap.stages.find(stage => stage.status === "ACTIVE")
+    ?? next.roadmap.stages.find(stage => stage.status === "DEPLOY_REVIEW")
 
   next.updatedAt = now
   next.docs.prd.exists = documentExists(PRD_PATH, PRD_DIR)
-  next.docs.prd.milestoneCount = Math.max(
-    next.docs.prd.milestoneCount,
-    next.execution.milestones.length,
-    countMilestonesFromPrd(),
-  )
+  next.docs.prd.version = parseDocumentVersion(prdContent) ?? next.docs.prd.version
+  next.docs.prd.milestoneCount =
+    currentStage?.milestoneIds.length
+    ?? countMilestonesFromPrd()
 
   next.docs.architecture.exists = documentExists(ARCHITECTURE_PATH, ARCHITECTURE_DIR)
+  next.docs.architecture.version = parseDocumentVersion(architectureContent) ?? next.docs.architecture.version
   next.docs.architecture.dependencyLayers =
     next.docs.architecture.dependencyLayers.length > 0
       ? next.docs.architecture.dependencyLayers

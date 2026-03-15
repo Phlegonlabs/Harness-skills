@@ -1,6 +1,7 @@
 import type {
   AgentId,
   AgentPacketMilestone,
+  AgentPacketStage,
   AgentPacketTask,
   AgentTaskPacket,
   Milestone,
@@ -10,6 +11,7 @@ import type {
 import { getAgentEntry } from "./agent-registry"
 import { getAgentMaterialPolicy } from "./material-policy"
 import { getPhaseReadiness } from "./phase-readiness"
+import { getCurrentProductStage } from "../stages"
 
 function getCurrentMilestone(state: ProjectState): Milestone | undefined {
   return state.execution.milestones.find(m => m.id === state.execution.currentMilestone)
@@ -27,6 +29,18 @@ function serializeMilestone(milestone?: Milestone): AgentPacketMilestone | undef
     id: milestone.id,
     name: milestone.name,
     status: milestone.status,
+  }
+}
+
+function serializeStage(state: ProjectState): AgentPacketStage | undefined {
+  const stage = getCurrentProductStage(state)
+  if (!stage) return undefined
+  return {
+    architectureVersion: stage.architectureVersion,
+    id: stage.id,
+    name: stage.name,
+    prdVersion: stage.prdVersion,
+    status: stage.status,
   }
 }
 
@@ -89,6 +103,16 @@ function agentOwnsCurrentPhase(agentId: AgentId, phase: ProjectState["phase"]): 
     default:
       return false
   }
+}
+
+function shouldIncludeCurrentPhaseOutputs(agentId: AgentId, phase: ProjectState["phase"]): boolean {
+  if (agentOwnsCurrentPhase(agentId, phase)) return true
+
+  if (phase === "SCAFFOLD" && agentId === "prd-architect") {
+    return true
+  }
+
+  return false
 }
 
 function buildAfterCompletion(agentId: AgentId, state: ProjectState, validationCmd: string): string[] {
@@ -202,7 +226,7 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
   const validationCmd = formatValidationCommand(agentId, state)
   const policy = getAgentMaterialPolicy(agentId, state)
   const phaseReadiness = getPhaseReadiness(state)
-  const phaseOutputs = agentOwnsCurrentPhase(agentId, state.phase)
+  const phaseOutputs = shouldIncludeCurrentPhaseOutputs(agentId, state.phase)
     ? phaseReadiness
     : { missingOutputs: [], requiredOutputs: [] }
 
@@ -210,12 +234,15 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
     agentId,
     agentName: entry.name,
     afterCompletion: buildAfterCompletion(agentId, state, validationCmd),
+    architectureVersion: state.docs.architecture.version,
     currentMilestone: serializeMilestone(milestone),
+    currentStage: serializeStage(state),
     currentTask: serializeTask(task),
     inlineConstraints: [...policy.inlineConstraints],
     missingOutputs: [...phaseOutputs.missingOutputs],
     optionalRefs: [...policy.optionalRefs],
     phase: state.phase,
+    prdVersion: state.docs.prd.version,
     requiredOutputs: [...phaseOutputs.requiredOutputs],
     requiredRefs: [...policy.requiredRefs],
     specPath: entry.specPath,
@@ -239,6 +266,13 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
 
   lines.push(`${"─".repeat(40)} Inline Context`)
   lines.push(`Phase: ${packet.phase}`)
+  if (packet.currentStage) {
+    lines.push(
+      `Product Stage: ${packet.currentStage.id} — ${packet.currentStage.name} (${packet.currentStage.status})`,
+    )
+  }
+  lines.push(`PRD Version: ${packet.prdVersion}`)
+  lines.push(`Architecture Version: ${packet.architectureVersion}`)
   if (packet.currentMilestone) {
     lines.push(
       `Milestone: ${packet.currentMilestone.id} — ${packet.currentMilestone.name} (${packet.currentMilestone.status})`,

@@ -64,7 +64,8 @@ function scanContentForPatterns(content: string, filePath: string): string[] {
 
 function readStdin(): string {
   try {
-    return readFileSync("/dev/stdin", "utf-8")
+    // fd 0 works cross-platform (Windows + Unix) in Bun, unlike "/dev/stdin"
+    return readFileSync(0, "utf-8")
   } catch {
     return ""
   }
@@ -358,7 +359,7 @@ interface CodexNotifyPayload {
   session_id?: string
 }
 
-function codexNotify(): void {
+async function codexNotify(): Promise<void> {
   const raw = readStdin()
   if (!raw) return
 
@@ -403,10 +404,19 @@ function codexNotify(): void {
       // git ls-files may fail outside a repo
     }
 
+    // G8: Auto-sync AGENTS.md -> CLAUDE.md after each task
+    try {
+      const { syncAgentFiles } = await import("./sync-agents")
+      syncAgentFiles()
+    } catch {
+      // Non-blocking — sync is best-effort
+    }
+
     if (warnings.length > 0) {
-      console.error("\n[harness-hooks] Codex post-task warnings:\n")
-      for (const w of warnings) console.error(`  ⚠ ${w}`)
-      console.error("")
+      console.error("\n[harness-hooks] FIX REQUIRED before commit:\n")
+      for (const w of warnings) console.error(`  - ${w}`)
+      console.error("\nThese violations will be BLOCKED by the git pre-commit hook.")
+      console.error("Fix all issues, then run: bun harness:validate --task <current-task-id>\n")
     }
     return
   }
@@ -466,7 +476,7 @@ async function main(): Promise<void> {
         process.exit(1)
     }
   } else if (args[0] === "--codex") {
-    codexNotify()
+    await codexNotify()
   } else {
     console.error("Usage: check-guardian.ts --hook <name> [args] | --claude <event> | --codex")
     process.exit(1)

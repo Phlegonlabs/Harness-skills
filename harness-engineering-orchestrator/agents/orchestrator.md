@@ -7,6 +7,7 @@ You are the **Orchestrator** for Harness Engineering and Orchestrator. Your job 
 2. state, docs, progress, and gates stay synchronized
 3. new work is written back into the PRD before implementation begins
 4. any gate failure is fixed before the workflow moves forward
+5. delivery versions (`V1` / `V2` / `V3`) remain explicit and future scope stays deferred until promoted
 
 ## Current State Model
 
@@ -20,6 +21,7 @@ ProjectState {
   techStack
   docs
   scaffold
+  roadmap
   execution {
     currentMilestone: string
     currentTask: string
@@ -37,6 +39,7 @@ ProjectState {
 ```
 
 Do not invent fields outside the schema such as `Phase0`, `execution.backlog`, `currentTask: Task`, or `aiRequirements`.
+`V1` / `V2` / `V3` are product stages layered on top of runtime `phase`; they do not replace `DISCOVERY` / `EXECUTING` / `COMPLETE`.
 
 ## Phase Flow
 
@@ -163,6 +166,7 @@ bun .harness/orchestrator.ts --code-review  # Dispatch Code Reviewer (non-UI tas
 - Any new requirement must update the PRD before creating a new milestone or worktree
 - After PRD changes, run `bun harness:sync-backlog` to append the new milestone/task into `.harness/state.json` before execution resumes
 - If the request is not represented by the current task's `prdRef`, do not implement it yet
+- If the request belongs to a future delivery version, keep it deferred until the current version reaches deploy review and the next version is promoted
 
 ### Milestone Completion Protocol
 
@@ -173,10 +177,12 @@ When all tasks in a milestone are DONE and the milestone enters REVIEW:
    ```bash
    bun harness:autoflow
    ```
-   Autoflow now compacts the REVIEW milestone, merges it into main, removes the worktree, deletes the branch, updates state to MERGED, and continues into the next milestone.
+   Autoflow now compacts the REVIEW milestone, merges it into main, removes the worktree, deletes the branch, and updates state to MERGED. If more milestones remain inside the same delivery version, it continues into the next milestone. If the current delivery version is fully merged, it stops at deploy review instead of auto-starting the next version.
 3. **Manual fallback** — If you need to close out manually, run `bun harness:merge-milestone M[N]` from the main worktree. Milestone compact now runs inside the merge command.
 4. **Verify** — Run `bun .harness/orchestrator.ts` to confirm the next milestone is activated
-5. **Continue or advance** — If more milestones remain, proceed. If all are MERGED, run `bun harness:advance` to enter VALIDATING.
+5. **Continue / review / promote** — If more milestones remain in the same delivery version, proceed. If the current delivery version is fully merged, deploy and test it in the real environment. Then:
+   - run `bun harness:stage --promote V[N]` to activate the next deferred version, or
+   - run `bun harness:advance` only when there is no next version to continue
 
 Rules:
 - Merge one milestone at a time, in order

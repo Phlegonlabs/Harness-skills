@@ -1,5 +1,13 @@
 import type { AgentId, AgentTaskPacket, Milestone, ProjectState, Task } from "../../types"
 import {
+  countExecutionMilestonesForStage,
+  getActiveProductStage,
+  getCurrentProductStage,
+  getNextDeferredProductStage,
+  hasDeferredProductStages,
+} from "../stages"
+import { getPhaseStructuralChecks } from "../phase-structural"
+import {
   getAgentEntry,
   getUnsupportedPhaseGuidance,
   needsFrontendDesigner,
@@ -27,7 +35,9 @@ function getCurrentTask(state: ProjectState): Task | undefined {
 }
 
 function needsBacklogSync(state: ProjectState): boolean {
-  return state.docs.prd.milestoneCount > state.execution.milestones.length
+  const activeStage = getActiveProductStage(state)
+  if (!activeStage) return false
+  return state.docs.prd.milestoneCount > countExecutionMilestonesForStage(state, activeStage.id)
 }
 
 function agentDispatch(
@@ -86,6 +96,27 @@ function getDiscoveryAction(state: ProjectState): DispatchResult {
 }
 
 function getExecutingAction(state: ProjectState): DispatchResult {
+  const currentStage = getCurrentProductStage(state)
+  if (currentStage?.status === "DEPLOY_REVIEW") {
+    const nextDeferredStage = getNextDeferredProductStage(state)
+    if (nextDeferredStage) {
+      return manualGuidance(
+        `Product stage ${currentStage.id} is in DEPLOY_REVIEW.\n` +
+        "Deploy and test the current version in the real environment before activating the next stage.\n" +
+        `When the next version is ready in PRD / Architecture, run:\n` +
+        `  bun harness:stage --promote ${nextDeferredStage.id}\n` +
+        "  bun .harness/orchestrator.ts"
+      )
+    }
+
+    return manualGuidance(
+      `Product stage ${currentStage.id} is in DEPLOY_REVIEW.\n` +
+      "Deploy and test the current version in the real environment.\n" +
+      "If no next stage is planned, run:\n" +
+      "  bun harness:advance"
+    )
+  }
+
   const milestone = getCurrentMilestone(state)
   if (!milestone) {
     if (needsBacklogSync(state)) {
@@ -120,6 +151,23 @@ function getExecutingAction(state: ProjectState): DispatchResult {
 
   const task = getCurrentTask(state)
   if (!task) return noAction("No active task in current milestone.")
+
+  if (task.status === "BLOCKED") {
+    const nextExecutable = milestone!.tasks.find(
+      t => t.status === "PENDING" || t.status === "IN_PROGRESS"
+    )
+    if (nextExecutable) {
+      return manualGuidance(
+        `Task ${task.id} is BLOCKED: ${task.blockedReason ?? "no reason given"}\n` +
+        `Next executable task: ${nextExecutable.id} — ${nextExecutable.name}\n` +
+        `Update execution.currentTask to "${nextExecutable.id}" in .harness/state.json, then re-run orchestrator.`
+      )
+    }
+    return manualGuidance(
+      `Task ${task.id} is BLOCKED: ${task.blockedReason ?? "no reason given"}\n` +
+      `No other executable tasks remain in ${milestone!.id}. Manual intervention required.`
+    )
+  }
 
   if (task.retryCount >= 3) {
     return manualGuidance(
@@ -167,6 +215,8 @@ function getPrdArchAction(state: ProjectState): DispatchResult {
 
 function getScaffoldAction(state: ProjectState): DispatchResult {
   const readiness = getPhaseReadiness(state)
+  const planningChecks = getPhaseStructuralChecks("SCAFFOLD", state)
+  const planningBlocked = planningChecks.some(item => !item.ok)
   if (readiness.ready) {
     return phaseAdvanceGuidance([
       "Scaffold outputs are ready.",
@@ -175,6 +225,19 @@ function getScaffoldAction(state: ProjectState): DispatchResult {
       "  bun harness:advance",
       "  bun .harness/orchestrator.ts",
     ])
+  }
+
+  if (planningBlocked) {
+    return agentDispatch(
+      "prd-architect",
+      state,
+      [
+        "Planning docs are not complete enough to enter scaffold.",
+        "1. Finish PRD / Architecture / GitBook skeleton content",
+        "2. bun harness:advance",
+        "3. bun .harness/orchestrator.ts",
+      ].join("\n"),
+    )
   }
 
   return agentDispatch(
@@ -190,6 +253,15 @@ function getScaffoldAction(state: ProjectState): DispatchResult {
 }
 
 function getCompleteAction(state: ProjectState): DispatchResult {
+  if (hasDeferredProductStages(state)) {
+    const nextDeferredStage = getNextDeferredProductStage(state)
+    return manualGuidance(
+      "Deferred product stages are still present in the roadmap.\n" +
+      "If you are continuing delivery, update PRD / Architecture and run:\n" +
+      `  bun harness:stage --promote ${nextDeferredStage?.id ?? "V2"}`
+    )
+  }
+
   if (needsBacklogSync(state)) {
     return manualGuidance(
       "New PRD milestone scope was detected after completion. Run:\n" +
@@ -250,6 +322,7 @@ export function dispatch(state: ProjectState): DispatchResult {
 }
 
 export function getStatus(state: ProjectState): string {
+  const stage = getCurrentProductStage(state)
   const milestone = getCurrentMilestone(state)
   const task = getCurrentTask(state)
   const result = dispatch(state)
@@ -261,6 +334,9 @@ export function getStatus(state: ProjectState): string {
   lines.push(`${"═".repeat(50)}`)
   lines.push("")
   lines.push(`Phase:     ${state.phase}`)
+  lines.push(`Stage:     ${stage ? `${stage.id} — ${stage.name} (${stage.status})` : "—"}`)
+  lines.push(`PRD:       ${state.docs.prd.version}`)
+  lines.push(`Arch:      ${state.docs.architecture.version}`)
   lines.push(`Milestone: ${milestone ? `${milestone.id} — ${milestone.name} (${milestone.status})` : "—"}`)
   lines.push(`Task:      ${task ? `${task.id} — ${task.name} (${task.status})` : "—"}`)
   lines.push(`Worktree:  ${state.execution.currentWorktree || "—"}`)

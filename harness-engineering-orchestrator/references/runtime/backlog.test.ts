@@ -25,9 +25,23 @@ afterEach(() => {
   rmSync(workspaceDir, { force: true, recursive: true })
 })
 
-test("syncExecutionFromPrd appends new milestones and reopens EXECUTING", () => {
+function writePlanningDocs(prdContent: string, architectureContent?: string): void {
+  write("docs/PRD.md", prdContent)
   write(
-    "docs/PRD.md",
+    "docs/ARCHITECTURE.md",
+    architectureContent
+      ?? [
+        "> **Version**: v1.0",
+        "",
+        "## Dependency Direction",
+        "types -> config -> lib -> services -> app",
+        "",
+      ].join("\n"),
+  )
+}
+
+test("syncExecutionFromPrd appends new milestones and reopens EXECUTING", () => {
+  writePlanningDocs(
     [
       "### Milestone 1: Foundation",
       "#### F001: Ship foundation",
@@ -50,6 +64,7 @@ test("syncExecutionFromPrd appends new milestones and reopens EXECUTING", () => 
     {
       id: "M1",
       name: "Foundation",
+      productStageId: "V1",
       branch: "milestone/m1-foundation",
       worktreePath: "../sync-backlog-fixture-m1",
       status: "MERGED",
@@ -78,8 +93,10 @@ test("syncExecutionFromPrd appends new milestones and reopens EXECUTING", () => 
   const result = syncExecutionFromPrd(state)
 
   expect(result.addedMilestones).toBe(1)
+  expect(result.addedStages).toBe(1)
   expect(result.addedTasks).toBe(1)
   expect(result.state.phase).toBe("EXECUTING")
+  expect(result.state.roadmap.currentStageId).toBe("V1")
   expect(result.state.execution.currentMilestone).toBe("M2")
   expect(result.state.execution.currentTask).toBe("T002")
   expect(result.state.execution.milestones[0]?.status).toBe("MERGED")
@@ -88,8 +105,7 @@ test("syncExecutionFromPrd appends new milestones and reopens EXECUTING", () => 
 })
 
 test("syncExecutionFromPrd rejects new scope added to a merged milestone", () => {
-  write(
-    "docs/PRD.md",
+  writePlanningDocs(
     [
       "### Milestone 1: Foundation",
       "#### F001: Ship foundation",
@@ -109,6 +125,7 @@ test("syncExecutionFromPrd rejects new scope added to a merged milestone", () =>
     {
       id: "M1",
       name: "Foundation",
+      productStageId: "V1",
       branch: "milestone/m1-foundation",
       worktreePath: "../sync-backlog-fixture-m1",
       status: "MERGED",
@@ -132,4 +149,65 @@ test("syncExecutionFromPrd rejects new scope added to a merged milestone", () =>
   ]
 
   expect(() => syncExecutionFromPrd(state)).toThrow(/new scope as a new milestone/i)
+})
+
+test("syncExecutionFromPrd only materializes the ACTIVE product stage", () => {
+  writePlanningDocs(
+    [
+      "> **Version**: v1.0",
+      "",
+      "## Product Stage V1: Initial Delivery [ACTIVE]",
+      "### Milestone 1: Foundation",
+      "#### F001: Ship foundation",
+      "- [ ] finish setup",
+      "",
+      "## Product Stage V2: Expansion [DEFERRED]",
+      "### Milestone 2: Expansion",
+      "#### F002: Add expansion flow",
+      "- [ ] add expansion",
+      "",
+    ].join("\n"),
+  )
+
+  const state = initState({})
+  state.phase = "EXECUTING"
+  state.projectInfo.name = "stage-aware-fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+
+  const result = syncExecutionFromPrd(state)
+
+  expect(result.state.roadmap.currentStageId).toBe("V1")
+  expect(result.state.roadmap.stages).toHaveLength(2)
+  expect(result.state.roadmap.stages[0]?.status).toBe("ACTIVE")
+  expect(result.state.roadmap.stages[1]?.status).toBe("DEFERRED")
+  expect(result.state.execution.milestones.map(milestone => milestone.id)).toEqual(["M1"])
+  expect(result.state.execution.milestones[0]?.productStageId).toBe("V1")
+  expect(result.state.execution.currentTask).toBe("T001")
+})
+
+test("syncExecutionFromPrd rejects scaffold placeholder planning docs", () => {
+  writePlanningDocs(
+    [
+      "### Milestone 1: Foundation",
+      "#### F001: Harness Base Scaffold",
+      "- [ ] keep placeholder scaffold scope",
+      "",
+      "#### F002: Backlog and Validation Closed Loop",
+      "- [ ] keep placeholder orchestration scope",
+      "",
+      "#### F003: Next Version Placeholder",
+      "- [ ] keep placeholder future scope",
+      "",
+    ].join("\n"),
+  )
+
+  const state = initState({})
+  state.phase = "SCAFFOLD"
+  state.projectInfo.name = "placeholder-fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+  state.docs.architecture.exists = true
+
+  expect(() => syncExecutionFromPrd(state)).toThrow(/Planning docs are still using scaffold placeholder content/i)
 })

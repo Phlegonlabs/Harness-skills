@@ -43,6 +43,17 @@ function createExecutingState(): ProjectState {
   state.projectInfo.aiProvider = "none"
   state.projectInfo.teamSize = "solo"
   state.projectInfo.isGreenfield = true
+  state.roadmap.currentStageId = "V1"
+  state.roadmap.stages = [
+    {
+      id: "V1",
+      name: "Initial Delivery",
+      status: "ACTIVE",
+      milestoneIds: ["M1", "M2"],
+      prdVersion: "v1.0",
+      architectureVersion: "v1.0",
+    },
+  ]
   state.execution.currentMilestone = "M2"
   state.execution.currentTask = "T201"
   state.execution.currentWorktree = "../closeout-fixture-m2"
@@ -50,6 +61,7 @@ function createExecutingState(): ProjectState {
     {
       id: "M1",
       name: "Foundation",
+      productStageId: "V1",
       branch: "milestone/m1-foundation",
       worktreePath: "",
       status: "REVIEW",
@@ -72,6 +84,7 @@ function createExecutingState(): ProjectState {
     {
       id: "M2",
       name: "Iteration Two",
+      productStageId: "V1",
       branch: "milestone/m2-iteration-two",
       worktreePath: "../closeout-fixture-m2",
       status: "IN_PROGRESS",
@@ -95,6 +108,69 @@ function createExecutingState(): ProjectState {
   return state
 }
 
+function createStageBoundaryState(): ProjectState {
+  const state = initState({})
+  state.phase = "EXECUTING"
+  state.projectInfo.name = "stage-boundary-fixture"
+  state.projectInfo.displayName = "Stage Boundary Fixture"
+  state.projectInfo.concept = "Validate deploy-review boundaries."
+  state.projectInfo.problem = "Autoflow must stop when a delivery version is fully merged."
+  state.projectInfo.goal = "Merge V1 automatically, then stop at deploy review before V2 starts."
+  state.projectInfo.types = ["cli"]
+  state.projectInfo.aiProvider = "none"
+  state.projectInfo.teamSize = "solo"
+  state.projectInfo.isGreenfield = true
+  state.docs.prd.version = "v1.0"
+  state.docs.architecture.version = "v1.0"
+  state.roadmap.currentStageId = "V1"
+  state.roadmap.stages = [
+    {
+      id: "V1",
+      name: "Initial Delivery",
+      status: "ACTIVE",
+      milestoneIds: ["M1"],
+      prdVersion: "v1.0",
+      architectureVersion: "v1.0",
+    },
+    {
+      id: "V2",
+      name: "Expansion",
+      status: "DEFERRED",
+      milestoneIds: ["M2"],
+    },
+  ]
+  state.execution.currentMilestone = "M1"
+  state.execution.currentTask = "T101"
+  state.execution.currentWorktree = "../stage-boundary-fixture-m1"
+  state.execution.milestones = [
+    {
+      id: "M1",
+      name: "Foundation",
+      productStageId: "V1",
+      branch: "milestone/m1-foundation",
+      worktreePath: "../stage-boundary-fixture-m1",
+      status: "REVIEW",
+      tasks: [
+        {
+          id: "T101",
+          name: "Ship V1 foundation",
+          type: "TASK",
+          status: "DONE",
+          prdRef: "PRD#F101",
+          milestoneId: "M1",
+          dod: ["Foundation delivered"],
+          isUI: false,
+          affectedFiles: ["feature.txt"],
+          retryCount: 0,
+          commitHash: "deadbeef",
+        },
+      ],
+    },
+  ]
+  state.execution.allMilestonesComplete = false
+  return state
+}
+
 function createAtomicCommitState(): ProjectState {
   const state = initState({})
   state.phase = "EXECUTING"
@@ -107,6 +183,17 @@ function createAtomicCommitState(): ProjectState {
   state.projectInfo.aiProvider = "none"
   state.projectInfo.teamSize = "solo"
   state.projectInfo.isGreenfield = true
+  state.roadmap.currentStageId = "V1"
+  state.roadmap.stages = [
+    {
+      id: "V1",
+      name: "Initial Delivery",
+      status: "ACTIVE",
+      milestoneIds: ["M1"],
+      prdVersion: "v1.0",
+      architectureVersion: "v1.0",
+    },
+  ]
   state.execution.currentMilestone = "M1"
   state.execution.currentTask = "T101"
   state.execution.currentWorktree = "../atomic-fixture-m1"
@@ -114,6 +201,7 @@ function createAtomicCommitState(): ProjectState {
     {
       id: "M1",
       name: "Foundation",
+      productStageId: "V1",
       branch: "milestone/m1-foundation",
       worktreePath: "../atomic-fixture-m1",
       status: "IN_PROGRESS",
@@ -168,6 +256,7 @@ test("autoflow auto-merges review milestones, compacts, and continues to the nex
   write("docs/ARCHITECTURE.md", "# Architecture\n")
   write("docs/PROGRESS.md", "# Progress\n")
   write("baseline.txt", "main\n")
+  write("feature.txt", "baseline\n")
   write("next.txt", "next milestone\n")
 
   const state = createExecutingState()
@@ -216,6 +305,85 @@ test("autoflow auto-merges review milestones, compacts, and continues to the nex
   expect(snapshot).toContain("Target milestone: M1")
 
   expect(readFileSync(join(workspaceDir, "feature.txt"), "utf-8")).toContain("merged from review milestone")
+  expect(runGit(["branch", "--list", "milestone/m1-foundation"]).output).toBe("")
+})
+
+test("autoflow stops at deploy review when the current delivery version is fully merged", async () => {
+  write(".harness/compact.ts", readFileSync(COMPACT_SCRIPT_SOURCE, "utf-8"))
+  write(
+    "package.json",
+    JSON.stringify(
+      {
+        name: "stage-boundary-fixture",
+        private: true,
+        scripts: {
+          "harness:merge-milestone": `bun ${MERGE_SCRIPT_PATH}`,
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  )
+  write(
+    "docs/PRD.md",
+    [
+      "# PRD",
+      "> **Version**: v1.0",
+      "",
+      "## Product Stage V1: Initial Delivery [ACTIVE]",
+      "### Milestone 1: Foundation",
+      "",
+      "## Product Stage V2: Expansion [DEFERRED]",
+      "### Milestone 2: Expansion",
+      "",
+    ].join("\n"),
+  )
+  write("docs/ARCHITECTURE.md", "# Architecture\n> **Version**: v1.0\n")
+  write("docs/PROGRESS.md", "# Progress\n")
+  write("baseline.txt", "main\n")
+  write("feature.txt", "baseline\n")
+
+  const state = createStageBoundaryState()
+  writeProjectStateToDisk(state, ".harness/state.json")
+
+  expect(runGit(["init", "-b", "main"]).ok).toBe(true)
+  expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
+  expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["add", "."]).ok).toBe(true)
+  expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
+
+  expect(runGit(["checkout", "-b", "milestone/m1-foundation"]).ok).toBe(true)
+  write("feature.txt", "merged from review milestone\n")
+  expect(runGit(["add", "feature.txt"]).ok).toBe(true)
+  const taskCommit = runGit([
+    "commit",
+    "-m",
+    "feat(T101): ship V1 foundation",
+    "-m",
+    "Closes: PRD#F101",
+    "-m",
+    "Code Review: ✅",
+  ])
+  expect(taskCommit.ok).toBe(true)
+  const reviewCommit = runGit(["rev-parse", "HEAD"])
+  expect(reviewCommit.ok).toBe(true)
+
+  const persisted = JSON.parse(readFileSync(".harness/state.json", "utf-8")) as ProjectState
+  persisted.execution.milestones[0]!.tasks[0]!.commitHash = reviewCommit.output
+  writeProjectStateToDisk(persisted, ".harness/state.json")
+
+  expect(runGit(["checkout", "main"]).ok).toBe(true)
+
+  const exitCode = await runAutoflow()
+  expect(exitCode).toBe(0)
+
+  const updated = JSON.parse(readFileSync(".harness/state.json", "utf-8")) as ProjectState
+  expect(updated.execution.milestones[0]!.status).toBe("MERGED")
+  expect(updated.execution.currentMilestone).toBe("")
+  expect(updated.execution.currentTask).toBe("")
+  expect(updated.roadmap.currentStageId).toBe("V1")
+  expect(updated.roadmap.stages[0]?.status).toBe("DEPLOY_REVIEW")
+  expect(updated.roadmap.stages[1]?.status).toBe("DEFERRED")
   expect(runGit(["branch", "--list", "milestone/m1-foundation"]).output).toBe("")
 })
 

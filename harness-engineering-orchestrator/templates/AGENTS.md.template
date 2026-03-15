@@ -24,6 +24,7 @@ Use this file as a startup and compatibility index. Orchestrator-dispatched task
 3. **The PRD is the source of truth** — every feature must map back to `docs/prd/`
 4. **Atomic commits** — each task must land as one independently verifiable commit
 5. **New scope returns to planning first** — if the user adds requirements outside the current task, update PRD / milestone planning first, then run `bun harness:sync-backlog`
+6. **Delivery versions are explicit** — `V1` / `V2` / `V3` are product stages, not runtime phases. Future stages may be documented early, but they stay deferred until the current version is merged, compacted, deploy-tested, and manually promoted.
 
 Full principles: `docs/ai/01-operating-principles.md`
 
@@ -47,7 +48,7 @@ Full principles: `docs/ai/01-operating-principles.md`
 
 Runtime auto-dispatch currently covers: `project-discovery`, `MARKET_RESEARCH`, `TECH_STACK`, `prd-architect`, `scaffold-generator`, `frontend-designer`, `execution-engine`, `code-reviewer`, `design-reviewer`, `harness-validator`, and `context-compactor`.
 After an interactive phase is complete, advance with `bun harness:advance`; keep `state.ts` for low-level mutation or tests.
-`bun harness:autoflow` only advances across phases whose required outputs already exist. If scaffold/runtime artifacts are missing, it stops and re-dispatches the current phase agent instead of skipping ahead. During `EXECUTING`, it also auto-compacts and merges `REVIEW` milestones from the main worktree, then continues into the next milestone.
+`bun harness:autoflow` only advances across phases whose required outputs already exist. If scaffold/runtime artifacts are missing, it stops and re-dispatches the current phase agent instead of skipping ahead. During `EXECUTING`, it also auto-compacts and merges `REVIEW` milestones from the main worktree. When the current delivery version is fully merged, it stops at deploy review instead of auto-starting the next version.
 Do not install product frameworks such as Next.js or Tauri during scaffold setup. Add them only inside milestone tasks.
 `.env.local` is generated as a local-only skeleton and should be filled incrementally as integrations are introduced.
 
@@ -98,6 +99,17 @@ Re-install after cloning (restores local Harness files, git hooks, Claude Code s
 
 ---
 
+## Codex CLI Operating Mode
+
+When running under Codex CLI (autonomous/task mode):
+1. Run `bun harness:validate --phase <CURRENT_PHASE>` before starting any phase work
+2. Do not chain `bun harness:advance` calls — run one advance per session, then re-dispatch
+3. Before committing, run `bun harness:validate --task <TASK_ID>` to catch guardian violations early
+4. Run `bun harness:compact` before ending each session
+5. If any validation fails, stop and report — do not retry the advance
+
+---
+
 ## Task Checklist (all 10 items must pass before moving to the next task)
 
 ```text
@@ -126,6 +138,7 @@ Milestone closeout now auto-runs milestone compact during `bun harness:merge-mil
 Task agents should prefer `.harness/state.json`, `docs/PROGRESS.md`, and `docs/progress/CONTEXT_SNAPSHOT.md` over scanning `docs/progress/`.
 
 If the user introduces new feature scope that is not represented by the current task's `prdRef`, do not implement it directly. First update `docs/PRD.md` / `docs/prd/`, then run `bun harness:sync-backlog`, then resume execution from the new milestone/task.
+If the request belongs to a future delivery version (`V2+`), keep it deferred. Finish the current version, run deploy / real-world validation, then promote the next version with `bun harness:stage --promote V[N]`.
 
 Full details: `docs/ai/06-context-health.md`
 
@@ -135,6 +148,8 @@ Full details: `docs/ai/06-context-health.md`
 
 ```bash
 bun harness:advance
+bun harness:stage --status
+bun harness:stage --promote V2
 bun harness:sync-backlog
 bun .harness/state.ts --show
 bun harness:env

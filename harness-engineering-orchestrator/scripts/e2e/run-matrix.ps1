@@ -243,6 +243,7 @@ function Test-ScaffoldContract {
   $requiredScripts = @(
     "check:deps",
     "harness:advance",
+    "harness:stage",
     "harness:add-surface",
     "harness:sync-backlog",
     "harness:autoflow",

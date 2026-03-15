@@ -22,7 +22,23 @@ const ADR_DIR = "docs/adr"
 const PROGRESS_DIR = "docs/progress"
 
 interface MinimalState {
+  docs: {
+    architecture: {
+      version: string
+    }
+    prd: {
+      version: string
+    }
+  }
   phase: string
+  roadmap: {
+    currentStageId: string
+    stages: Array<{
+      id: string
+      name: string
+      status: string
+    }>
+  }
   execution: {
     currentMilestone: string
     currentTask: string
@@ -118,6 +134,10 @@ function generateSnapshot(state: MinimalState, isMilestone: boolean, milestoneId
   const now = new Date().toISOString()
   const recentTasks = getCompletedTasks(state)
   const targetMilestone = resolveMilestoneTarget(state, milestoneId)
+  const currentStage =
+    state.roadmap.stages.find(stage => stage.id === state.roadmap.currentStageId)
+    ?? state.roadmap.stages.find(stage => stage.status === "ACTIVE")
+    ?? state.roadmap.stages.find(stage => stage.status === "DEPLOY_REVIEW")
   const remaining = getRemainingTasks(state, milestoneId)
   const archiveTasks = getMilestoneArchiveTasks(targetMilestone)
   const adrSummaries = collectAdrSummaries()
@@ -134,6 +154,9 @@ function generateSnapshot(state: MinimalState, isMilestone: boolean, milestoneId
   lines.push(`## 🔴 RETAIN — Must Keep`)
   lines.push(``)
   lines.push(`- **Phase**: ${state.phase}`)
+  lines.push(`- **Product Stage**: ${currentStage ? `${currentStage.id} — ${currentStage.name} [${currentStage.status}]` : "—"}`)
+  lines.push(`- **PRD Version**: ${state.docs.prd.version}`)
+  lines.push(`- **Architecture Version**: ${state.docs.architecture.version}`)
   lines.push(`- **Milestone**: ${targetMilestone?.id ?? state.execution.currentMilestone}`)
   lines.push(`- **Task**: ${state.execution.currentTask}`)
   lines.push(`- **Worktree**: ${state.execution.currentWorktree || "main"}`)
@@ -219,6 +242,15 @@ function showStatus(state: MinimalState | null): void {
   }
 
   console.log(`Phase:     ${state.phase}`)
+  console.log(
+    `Stage:     ${
+      state.roadmap.stages.find(stage => stage.id === state.roadmap.currentStageId)?.id
+      ?? state.roadmap.stages.find(stage => stage.status === "ACTIVE")?.id
+      ?? "—"
+    }`,
+  )
+  console.log(`PRD:       ${state.docs.prd.version}`)
+  console.log(`Arch:      ${state.docs.architecture.version}`)
   console.log(`Milestone: ${state.execution.currentMilestone}`)
   console.log(`Task:      ${state.execution.currentTask}`)
   console.log(`Worktree:  ${state.execution.currentWorktree || "main"}`)

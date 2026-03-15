@@ -67,6 +67,7 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       architecture: {
         path: "docs/ARCHITECTURE.md",
         exists: false,
+        version: "v1.0",
         dependencyLayers: ["types", "config", "lib", "services", "app"],
         ciValidated: false,
       },
@@ -96,6 +97,10 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       prTemplateExists: false,
       depCruiserConfigured: false,
       githubSetup: false,
+    },
+    roadmap: {
+      currentStageId: "",
+      stages: [],
     },
     execution: {
       currentMilestone: "",

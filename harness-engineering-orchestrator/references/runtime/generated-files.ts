@@ -128,6 +128,7 @@ ${ctx.description}
 \`\`\`bash
 bun install
 bun harness:advance
+bun harness:stage --status
 bun harness:sync-backlog
 bun harness:add-surface --type agent
 bun harness:sync-docs
@@ -136,7 +137,8 @@ bun harness:audit
 
 This workspace is monorepo-first. Keep adding new surfaces inside the same repository as later milestones.
 Do not bootstrap product frameworks such as Next.js, Tauri, or provider SDK stacks during scaffold setup. Introduce them only inside milestone tasks.
-If product scope changes after execution begins, update the PRD first and run \`bun harness:sync-backlog\` before implementing the new work.
+If product scope changes inside the current delivery version, update the PRD first and run \`bun harness:sync-backlog\`.
+If the next delivery version is being promoted after deploy / real-world review, update PRD / Architecture and run \`bun harness:stage --promote V[N]\`.
 
 - \`apps/\`: current surfaces -> ${ctx.workspaceList.join(", ")}
 - \`packages/shared/\`: shared contracts and utilities
@@ -156,6 +158,7 @@ function renderQuickStart(ctx: AutomationContext): string {
 bun install
 bun .harness/state.ts --show
 bun harness:advance
+bun harness:stage --status
 bun harness:sync-backlog
 bun harness:env
 bun harness:validate --phase EXECUTING
@@ -209,8 +212,9 @@ ${ctx.description}
 
 Runtime auto-dispatch currently covers \`project-discovery\`, \`MARKET_RESEARCH\`, \`TECH_STACK\`, \`prd-architect\`, \`scaffold-generator\`, the UI design loop, \`EXECUTING\`, \`VALIDATING\`, and \`context-compactor\`.
 After an interactive phase is complete, advance the lifecycle with \`bun harness:advance\`.
-\`bun harness:autoflow\` advances only after the current phase's required outputs exist; if scaffold artifacts are missing, it stops and surfaces the missing phase work instead of skipping ahead. During \`EXECUTING\`, it auto-compacts and merges \`REVIEW\` milestones, then continues into the next milestone.
-If product scope changes after execution begins, update the PRD first and run \`bun harness:sync-backlog\` before implementing the new work.
+\`bun harness:autoflow\` advances only after the current phase's required outputs exist; if scaffold artifacts are missing, it stops and surfaces the missing phase work instead of skipping ahead. During \`EXECUTING\`, it auto-compacts and merges \`REVIEW\` milestones. When the current delivery version is fully merged, it stops at a deploy review gate instead of auto-starting the next version.
+Use \`bun harness:stage --status\` to inspect the current delivery roadmap. After deploy / real-world review, update PRD / Architecture and run \`bun harness:stage --promote V[N]\` to activate the next version.
+If product scope changes inside the current delivery version, update the PRD first and run \`bun harness:sync-backlog\` before implementing the new work.
 During scaffold setup, do not pre-install project frameworks such as Next.js or Tauri; add them later inside milestone tasks.
 
 ## Quick Start
@@ -237,7 +241,7 @@ function renderPrdIndex(ctx: AutomationContext): string {
 
 1. [01 Overview](./prd/01-overview.md)
 2. [02 Users and Design](./prd/02-users-and-design.md)
-3. [03 Requirements](./prd/03-requirements.md)
+3. [03 Requirements and Product Stages](./prd/03-requirements.md)
 4. [04 Non-Functional Constraints](./prd/04-non-functional.md)
 5. [05 Open Questions](./prd/05-open-questions.md)
 6. [06 Changelog](./prd/06-changelog.md)
@@ -259,6 +263,8 @@ function renderArchitectureIndex(ctx: AutomationContext): string {
 3. [03 Dependency Rules](./architecture/03-dependency-rules.md)
 4. [04 State and Validation](./architecture/04-state-and-validation.md)
 5. [05 Initial Decisions](./architecture/05-initial-decisions.md)
+
+Keep \`docs/ARCHITECTURE.md\` as the current live version. Archive version snapshots under \`docs/architecture/versions/\` whenever a new delivery stage is promoted.
 `
 }
 

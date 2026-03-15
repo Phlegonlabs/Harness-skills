@@ -266,9 +266,11 @@ Task types:
 When all tasks in a milestone are complete (status: REVIEW):
 
 1. Complete the Milestone Review Checklist (GitBook, CHANGELOG, API docs)
-2. From the main worktree, run `bun harness:autoflow` to auto-compact, merge the REVIEW milestone, and continue directly into the next milestone
+2. From the main worktree, run `bun harness:autoflow` to auto-compact and merge the REVIEW milestone
 3. Manual fallback: run `bun harness:merge-milestone M[N]` from the main worktree; milestone compact now runs inside the merge command
-4. Continue to the next milestone, or `bun harness:advance` when all milestones are merged
+4. If more milestones remain in the same delivery version, autoflow continues there
+5. If the current delivery version is fully merged, the workflow stops at deploy review; update the main PRD / Architecture, then run `bun harness:stage --promote V[N]`
+6. Only use `bun harness:advance` after the final delivery version is fully merged and no deferred stages remain
 
 ### Progress Reporting
 

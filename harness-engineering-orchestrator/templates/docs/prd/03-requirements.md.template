@@ -1,5 +1,7 @@
 ## 4. Functional Requirements
 
+## Product Stage V1: Initial Delivery [ACTIVE]
+
 ### Milestone 1: Foundation
 
 #### F001: Harness Base Scaffold
@@ -30,5 +32,18 @@
 - [SURFACE_EVOLUTION_NOTE]
 - Add new surfaces such as iOS, CLI, desktop, or agent work as new milestones inside the same monorepo.
 - Do not fork into a separate repo just because a new surface is introduced later.
+
+## Product Stage V2: Deferred Expansion [DEFERRED]
+
+### Milestone 3: Deferred Expansion
+
+#### F003: Next Version Placeholder
+- **Description**: Reserve the next delivery version's scope without activating it yet.
+- **User story**: As a developer, I want future scope written down early without letting the runtime execute it before the current version is validated in the real environment.
+- **Acceptance criteria**:
+  - [ ] Future scope is clearly marked as deferred
+  - [ ] The current version can finish, merge, compact, and stop at deploy review before V2 is promoted
+- **Priority**: P1
+- **Dependencies**: F002
 
 [AGENT_SKILLS_REQUIREMENTS]

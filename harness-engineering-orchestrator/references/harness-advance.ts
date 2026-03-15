@@ -8,6 +8,7 @@
 
 import type { Phase, ProjectState } from "./types"
 import { deriveExecutionFromPrd } from "./runtime/backlog"
+import { getCurrentProductStage, hasDeferredProductStages } from "./runtime/stages"
 import { writeState } from "./runtime/state-core"
 import { validatePhaseGate } from "./runtime/validation/phase"
 import { loadState, saveState, syncStateFromFilesystem } from "./runtime/validation/state"
@@ -77,6 +78,20 @@ async function validateGateOrExit(phase: Phase, state: ProjectState): Promise<vo
 const loaded = loadState(true)
 const state = syncStateFromFilesystem(loaded!)
 saveState(state)
+
+const currentStage = getCurrentProductStage(state)
+if (
+  state.phase === "EXECUTING" &&
+  currentStage?.status === "DEPLOY_REVIEW" &&
+  hasDeferredProductStages(state)
+) {
+  console.error(
+    `❌ Product stage ${currentStage.id} is waiting on deploy / real-world review and the roadmap still has deferred follow-up stages.`,
+  )
+  console.error("   Promote the next stage explicitly after updating PRD / Architecture:")
+  console.error("   bun harness:stage --promote V[N]")
+  process.exit(1)
+}
 
 const nextPhase = getNextPhase(state.phase)
 if (!nextPhase) {

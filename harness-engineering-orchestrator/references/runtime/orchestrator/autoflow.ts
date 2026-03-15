@@ -1,4 +1,5 @@
 import type { ProjectState } from "../../types"
+import { getCurrentProductStage, hasDeferredProductStages } from "../stages"
 import { runBun } from "../validation/helpers"
 import { loadState, saveState, syncStateFromFilesystem } from "../validation/state"
 import { dispatch } from "./dispatcher"
@@ -107,7 +108,16 @@ export async function runAutoflow(): Promise<number> {
           continue
         }
 
+        const currentStage = getCurrentProductStage(state)
+        if (currentStage?.status === "DEPLOY_REVIEW") {
+          return stopAtBoundary(state)
+        }
+
         if (!state.execution.allMilestonesComplete) {
+          return stopAtBoundary(state)
+        }
+
+        if (hasDeferredProductStages(state)) {
           return stopAtBoundary(state)
         }
 

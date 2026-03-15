@@ -73,6 +73,9 @@ The generated result uses a "thin entry + modules" structure:
 ## 4. Functional Requirements
 
 > Each feature is organized by Milestone; the Orchestrator uses this as the basis for splitting Tasks.
+> Continuous-delivery projects should also group Milestones by explicit product stages such as `V1`, `V2`, and `V3`.
+> Use headings like `## Product Stage V1: Initial Delivery [ACTIVE]` and `## Product Stage V2: Deferred Expansion [DEFERRED]`.
+> Only the current `ACTIVE` stage is executable. Deferred stages stay in the PRD until the current version is merged, deploy-tested, and explicitly promoted.
 
 ### Milestone 1: Foundation (MVP Base)
 
@@ -174,10 +177,10 @@ Record items that are currently uncertain, to be updated in the PRD after user c
 
 When a user proposes new features or changes requirements:
 
-1. Add a new Milestone at the end of the PRD (e.g. `Milestone 5`)
-2. Update the version number (v1.0 → v1.1)
-3. Record this update in the change log
-4. **Trigger the Worktree workflow** (see `references/worktree-workflow.md`)
-5. The Orchestrator regenerates the Task Backlog based on the new Milestone
+1. If the scope belongs to the current delivery version, update the current stage's Milestone list and run `bun harness:sync-backlog`
+2. If the scope belongs to a future delivery version, add a deferred stage (for example `V2`) instead of activating it immediately
+3. Update the version number (v1.0 → v1.1 / v2.0)
+4. Record this update in the change log
+5. After the current version passes deploy / real-world review, promote the deferred stage with `bun harness:stage --promote V[N]`
 
 **The PRD is the single source of truth for requirements.** Any feature not written into the PRD will not be executed by the Orchestrator.

@@ -4,6 +4,7 @@ Architecture uses a "thin entry + modules" structure:
 
 - `docs/ARCHITECTURE.md`: entry point and stable links
 - `docs/architecture/*.md`: system overview, structure, dependency rules, validation strategy, decisions
+- `docs/architecture/versions/*.md`: version snapshots captured when a new delivery stage is promoted
 
 The Orchestrator uses this content to determine which layers each Task touches and how to organize the code.
 
@@ -209,3 +210,5 @@ See `references/worktree-workflow.md` for worktree usage.
 |---------|------|---------|
 | v1.0 | [DATE] | Initial architecture design |
 ```
+
+When a new delivery stage (`V2+`) is promoted, update the main Architecture document in place and archive a snapshot under `docs/architecture/versions/`.

@@ -26,7 +26,7 @@ A new Worktree must be created in the following situations:
 
 1. **New Milestone begins** (new feature set added to PRD)
 2. **Framework-level changes** (affects architecture, can't be changed directly on existing branch)
-3. **User submits a new PRD** (new functional requirements come in)
+3. **User submits a new PRD / next delivery version** (new functional requirements come in)
 4. **Experimental features** (exploratory work that may or may not be merged)
 
 ---
@@ -36,8 +36,8 @@ A new Worktree must be created in the following situations:
 ### Step 1: Update PRD
 
 ```bash
-# Add new Milestone in docs/PRD.md
-# Update version number v1.x → v1.x+1
+# Update docs/PRD.md for the next delivery version
+# Update version number v1.x → v1.x+1 / v2.0
 # Record in change log
 git add docs/PRD.md
 git commit -m "docs(prd): add milestone-[N] [feature name]"
@@ -205,8 +205,9 @@ If a new PRD requires **architecture changes** (e.g., adding a new dependency la
 
 1. **Update ARCHITECTURE.md first** (on the main branch)
 2. **Update AGENTS.md** (so all subsequent Agents know about the new architecture)
-3. **Create a new worktree** and branch from the updated main
-4. In the Task's commit message, indicate: `refactor(arch): restructure [description]`
+3. **If this belongs to a deferred next version, promote that version only after the current one completes deploy review**
+4. **Create a new worktree** and branch from the updated main
+5. In the Task's commit message, indicate: `refactor(arch): restructure [description]`
 
 **Important**: Architecture change commits must be standalone and cannot be mixed with feature implementation in the same commit.
 
