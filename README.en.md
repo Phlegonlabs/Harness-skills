@@ -28,7 +28,7 @@ Harness Engineering focuses on making agent-assisted development stateful and re
 ## Install
 
 ```bash
-npx skills add https://github.com/Phlegonlabs/Harness-engineering-skills --skill harness-engineering-orchestrator
+npx skills add https://github.com/Phlegonlabs/Harness-skills --skill harness-engineering-orchestrator
 ```
 
 ## When to use this skill
