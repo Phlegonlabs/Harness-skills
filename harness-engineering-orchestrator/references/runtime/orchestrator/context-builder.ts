@@ -9,6 +9,7 @@ import type {
 } from "../../types"
 import { getAgentEntry } from "./agent-registry"
 import { getAgentMaterialPolicy } from "./material-policy"
+import { getPhaseReadiness } from "./phase-readiness"
 
 function getCurrentMilestone(state: ProjectState): Milestone | undefined {
   return state.execution.milestones.find(m => m.id === state.execution.currentMilestone)
@@ -66,6 +67,27 @@ function formatValidationCommand(agentId: AgentId, state: ProjectState): string 
         : "bun harness:validate"
     default:
       return `bun harness:validate --phase ${state.phase}`
+  }
+}
+
+function agentOwnsCurrentPhase(agentId: AgentId, phase: ProjectState["phase"]): boolean {
+  switch (phase) {
+    case "DISCOVERY":
+      return agentId === "project-discovery"
+    case "MARKET_RESEARCH":
+      return agentId === "market-research"
+    case "TECH_STACK":
+      return agentId === "tech-stack-advisor"
+    case "PRD_ARCH":
+      return agentId === "prd-architect"
+    case "SCAFFOLD":
+      return agentId === "scaffold-generator"
+    case "VALIDATING":
+      return agentId === "harness-validator"
+    case "COMPLETE":
+      return agentId === "context-compactor"
+    default:
+      return false
   }
 }
 
@@ -178,6 +200,10 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
   const task = getCurrentTask(state)
   const validationCmd = formatValidationCommand(agentId, state)
   const policy = getAgentMaterialPolicy(agentId, state)
+  const phaseReadiness = getPhaseReadiness(state)
+  const phaseOutputs = agentOwnsCurrentPhase(agentId, state.phase)
+    ? phaseReadiness
+    : { missingOutputs: [], requiredOutputs: [] }
 
   return {
     agentId,
@@ -186,8 +212,10 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
     currentMilestone: serializeMilestone(milestone),
     currentTask: serializeTask(task),
     inlineConstraints: [...policy.inlineConstraints],
+    missingOutputs: [...phaseOutputs.missingOutputs],
     optionalRefs: [...policy.optionalRefs],
     phase: state.phase,
+    requiredOutputs: [...phaseOutputs.requiredOutputs],
     requiredRefs: [...policy.requiredRefs],
     specPath: entry.specPath,
     taskDod: task ? [...task.dod] : [],
@@ -236,6 +264,15 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
   }
   lines.push(`Validation Gate: ${packet.validationCommand}`)
   lines.push("")
+
+  if (packet.requiredOutputs.length > 0) {
+    lines.push(`${"─".repeat(40)} Phase Outputs`)
+    for (const item of packet.requiredOutputs) {
+      const marker = packet.missingOutputs.includes(item) ? "[ ]" : "[x]"
+      lines.push(`- ${marker} ${item}`)
+    }
+    lines.push("")
+  }
 
   lines.push(`${"─".repeat(40)} Required Refs`)
   for (const ref of packet.requiredRefs) {

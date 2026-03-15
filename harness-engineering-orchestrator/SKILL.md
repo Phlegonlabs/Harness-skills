@@ -52,6 +52,7 @@ When this skill runs, act as the **Orchestrator**.
 - Keep runtime state, documents, backlog, and gates synchronized
 - Treat `docs/PRD.md` and `docs/ARCHITECTURE.md` as the only planning source of truth
 - Advance phases through the runtime (`bun harness:advance` or the underlying `.harness/*` scripts); do not fake completion
+- `bun harness:autoflow` may only advance after the current phase's required outputs exist on disk; missing scaffold/runtime artifacts must keep the workflow on the current phase
 - Read only the agent or reference file needed for the current step
 - Default the conversation to milestone and task progress, not long file inventories
 

@@ -2,6 +2,7 @@ import type { ProjectState } from "../../types"
 import { runBun } from "../validation/helpers"
 import { loadState, saveState, syncStateFromFilesystem } from "../validation/state"
 import { dispatch } from "./dispatcher"
+import { getPhaseReadiness } from "./phase-readiness"
 
 const AUTOFLOW_MAX_STEPS = 12
 
@@ -33,7 +34,14 @@ async function tryAdvance(): Promise<boolean> {
 
 function stopAtBoundary(state: ProjectState): number {
   const next = dispatch(state)
+  const readiness = getPhaseReadiness(state)
   console.log(`\nAutoflow stopped at phase ${state.phase}.`)
+  if (readiness.missingOutputs.length > 0) {
+    console.log("Missing outputs:")
+    for (const item of readiness.missingOutputs) {
+      console.log(`- ${item}`)
+    }
+  }
   if (next.type === "agent" && next.agentId) {
     console.log(`Next agent: ${next.agentId}`)
   } else {
@@ -45,11 +53,15 @@ function stopAtBoundary(state: ProjectState): number {
 export async function runAutoflow(): Promise<number> {
   for (let step = 0; step < AUTOFLOW_MAX_STEPS; step++) {
     const state = readRuntimeState()
+    const readiness = getPhaseReadiness(state)
 
     switch (state.phase) {
       case "DISCOVERY":
       case "MARKET_RESEARCH":
       case "TECH_STACK": {
+        if (!readiness.ready) {
+          return stopAtBoundary(state)
+        }
         if (!(await tryAdvance())) {
           return stopAtBoundary(state)
         }
@@ -57,6 +69,9 @@ export async function runAutoflow(): Promise<number> {
       }
 
       case "PRD_ARCH": {
+        if (!readiness.ready) {
+          return stopAtBoundary(state)
+        }
         if (!(await tryAdvance())) {
           return stopAtBoundary(state)
         }
@@ -64,6 +79,9 @@ export async function runAutoflow(): Promise<number> {
       }
 
       case "SCAFFOLD": {
+        if (!readiness.ready) {
+          return stopAtBoundary(state)
+        }
         if (!(await runCommand("bun install", ["install"]))) return 1
         if (!(await runCommand("bun harness:env", ["run", "harness:env"]))) return 1
         if (!(await runCommand("bun .harness/init.ts --from-prd", [".harness/init.ts", "--from-prd"]))) return 1

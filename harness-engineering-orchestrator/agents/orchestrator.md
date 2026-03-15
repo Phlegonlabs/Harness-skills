@@ -75,6 +75,7 @@ Rules:
 - Never skip the user confirmation step
 - If the validation fails, fix the issue first — do not ask to advance
 - During Discovery: each question is its own response turn, not just each phase
+- `bun harness:autoflow` may only auto-advance when the current phase artifacts are already present; if scaffold/runtime outputs are missing, stop and re-dispatch the current phase agent
 
 You may need to manually adapt `package.json` scripts that the gate checks expect (`typecheck`, `format:check`, `build`) to map to equivalent scripts in the existing repo.
 

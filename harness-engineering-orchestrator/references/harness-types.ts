@@ -338,8 +338,10 @@ export interface AgentTaskPacket {
   currentMilestone?: AgentPacketMilestone
   currentTask?: AgentPacketTask
   inlineConstraints: string[]
+  missingOutputs: string[]
   optionalRefs: string[]
   phase: Phase
+  requiredOutputs: string[]
   requiredRefs: string[]
   specPath: string
   taskDod: string[]

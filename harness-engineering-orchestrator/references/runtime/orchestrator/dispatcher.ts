@@ -5,6 +5,7 @@ import {
   needsFrontendDesigner,
 } from "./agent-registry"
 import { buildAgentTaskPacket, renderAgentTaskPacket } from "./context-builder"
+import { getPhaseReadiness } from "./phase-readiness"
 
 export interface DispatchResult {
   type: "agent" | "manual" | "none"
@@ -54,7 +55,21 @@ function noAction(message: string): DispatchResult {
   return { type: "none", message }
 }
 
+function phaseAdvanceGuidance(lines: string[]): DispatchResult {
+  return manualGuidance(lines.join("\n"))
+}
+
 function getDiscoveryAction(state: ProjectState): DispatchResult {
+  const readiness = getPhaseReadiness(state)
+  if (readiness.ready) {
+    return phaseAdvanceGuidance([
+      "Discovery outputs are ready.",
+      "Run:",
+      "  bun harness:advance",
+      "  bun .harness/orchestrator.ts",
+    ])
+  }
+
   return agentDispatch(
     "project-discovery",
     state,
@@ -115,6 +130,16 @@ function getExecutingAction(state: ProjectState): DispatchResult {
 }
 
 function getPrdArchAction(state: ProjectState): DispatchResult {
+  const readiness = getPhaseReadiness(state)
+  if (readiness.ready) {
+    return phaseAdvanceGuidance([
+      "PRD / Architecture outputs are ready.",
+      "Run:",
+      "  bun harness:advance",
+      "  bun .harness/orchestrator.ts",
+    ])
+  }
+
   return agentDispatch(
     "prd-architect",
     state,
@@ -128,6 +153,17 @@ function getPrdArchAction(state: ProjectState): DispatchResult {
 }
 
 function getScaffoldAction(state: ProjectState): DispatchResult {
+  const readiness = getPhaseReadiness(state)
+  if (readiness.ready) {
+    return phaseAdvanceGuidance([
+      "Scaffold outputs are ready.",
+      "Run:",
+      "  bun install",
+      "  bun harness:advance",
+      "  bun .harness/orchestrator.ts",
+    ])
+  }
+
   return agentDispatch(
     "scaffold-generator",
     state,
@@ -160,9 +196,23 @@ export function dispatch(state: ProjectState): DispatchResult {
     case "DISCOVERY":
       return getDiscoveryAction(state)
     case "MARKET_RESEARCH":
-      return agentDispatch("market-research", state)
+      return getPhaseReadiness(state).ready
+        ? phaseAdvanceGuidance([
+            "Market Research outputs are ready.",
+            "Run:",
+            "  bun harness:advance",
+            "  bun .harness/orchestrator.ts",
+          ])
+        : agentDispatch("market-research", state)
     case "TECH_STACK":
-      return agentDispatch("tech-stack-advisor", state)
+      return getPhaseReadiness(state).ready
+        ? phaseAdvanceGuidance([
+            "Tech Stack outputs are ready.",
+            "Run:",
+            "  bun harness:advance",
+            "  bun .harness/orchestrator.ts",
+          ])
+        : agentDispatch("tech-stack-advisor", state)
     case "PRD_ARCH":
       return getPrdArchAction(state)
     case "SCAFFOLD":
@@ -182,6 +232,7 @@ export function getStatus(state: ProjectState): string {
   const milestone = getCurrentMilestone(state)
   const task = getCurrentTask(state)
   const result = dispatch(state)
+  const readiness = getPhaseReadiness(state)
 
   const lines: string[] = []
   lines.push(`${"═".repeat(50)}`)
@@ -192,6 +243,7 @@ export function getStatus(state: ProjectState): string {
   lines.push(`Milestone: ${milestone ? `${milestone.id} — ${milestone.name} (${milestone.status})` : "—"}`)
   lines.push(`Task:      ${task ? `${task.id} — ${task.name} (${task.status})` : "—"}`)
   lines.push(`Worktree:  ${state.execution.currentWorktree || "—"}`)
+  lines.push(`Phase Ready: ${readiness.ready ? "yes" : "no"}`)
   lines.push("")
 
   const totalTasks = state.execution.milestones.flatMap(m => m.tasks).length
@@ -208,6 +260,14 @@ export function getStatus(state: ProjectState): string {
     lines.push(`Manual: ${result.message}`)
   } else {
     lines.push(`None: ${result.message}`)
+  }
+
+  if (readiness.missingOutputs.length > 0) {
+    lines.push("")
+    lines.push(`${"─".repeat(40)} Missing Outputs`)
+    for (const item of readiness.missingOutputs) {
+      lines.push(`- ${item}`)
+    }
   }
 
   return lines.join("\n")

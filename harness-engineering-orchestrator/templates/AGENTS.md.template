@@ -46,6 +46,7 @@ Full principles: `docs/ai/01-operating-principles.md`
 
 Runtime auto-dispatch currently covers: `project-discovery`, `MARKET_RESEARCH`, `TECH_STACK`, `prd-architect`, `scaffold-generator`, `frontend-designer`, `execution-engine`, `code-reviewer`, `design-reviewer`, `harness-validator`, and `context-compactor`.
 After an interactive phase is complete, advance with `bun harness:advance`; keep `state.ts` for low-level mutation or tests.
+`bun harness:autoflow` only advances across phases whose required outputs already exist. If scaffold/runtime artifacts are missing, it stops and re-dispatches the current phase agent instead of skipping ahead.
 Do not install product frameworks such as Next.js or Tauri during scaffold setup. Add them only inside milestone tasks.
 `.env.local` is generated as a local-only skeleton and should be filled incrementally as integrations are introduced.
 
