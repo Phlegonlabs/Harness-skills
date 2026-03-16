@@ -148,10 +148,16 @@ test("stage promotion snapshots docs and resumes execution on the next deferred 
   expect(updated.execution.currentTask).toBe("T002")
   expect(updated.execution.milestones.map(milestone => milestone.id)).toEqual(["M1", "M2"])
   expect(updated.execution.milestones[1]?.productStageId).toBe("V2")
+  expect(updated.history.events.some(event => event.kind === "stage_promoted")).toBe(true)
+  expect(updated.history.events.some(event => event.kind === "public_docs_synced")).toBe(true)
   expect(existsSync("docs/prd/versions/prd-v2.md")).toBe(true)
   expect(existsSync("docs/architecture/versions/architecture-v2.md")).toBe(true)
   expect(readFileSync("docs/prd/versions/prd-v2.md", "utf-8")).toContain("Product Stage V2")
   expect(readFileSync("docs/architecture/versions/architecture-v2.md", "utf-8")).toContain("> **Version**: v2.0")
+  expect(readFileSync("README.md", "utf-8")).toContain("V2 — Expansion (ACTIVE)")
+  expect(readFileSync("README.md", "utf-8")).toContain("Continue the current milestone and merge it after review-ready closeout.")
+  expect(readFileSync("docs/public/quick-start.md", "utf-8")).toContain("Public Delivery Status")
+  expect(readFileSync("docs/public/quick-start.md", "utf-8")).toContain("V2 — Expansion (ACTIVE)")
 })
 
 test("stage promotion rejects stale document versions", () => {

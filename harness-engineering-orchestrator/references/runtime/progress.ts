@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
-import type { Milestone, ProjectState, Task } from "../types"
+import type { Milestone, ProjectState, Task, WorkflowEvent } from "../types"
 import { PROGRESS_DIR, PROGRESS_PATH } from "./shared"
 import { getCurrentProductStage, getNextDeferredProductStage } from "./stages"
+import { collectWorkflowEvents, findLatestWorkflowEvent } from "./workflow-history"
 
 function statusIcon(status: Task["status"]): string {
   switch (status) {
@@ -102,35 +103,17 @@ function nextWorktreePath(state: ProjectState, currentMilestone?: Milestone): st
   return "../project-m1"
 }
 
-function buildTaskActivityLog(state: ProjectState): string[] {
-  const activity = state.execution.milestones.flatMap(milestone =>
-    milestone.tasks.flatMap(task => {
-      const entries: Array<{ at: string; text: string }> = []
-      if (task.startedAt) {
-        entries.push({
-          at: task.startedAt,
-          text: `${task.startedAt}: ${task.id} entered IN_PROGRESS in ${milestone.id} — ${task.name}`,
-        })
-      }
-      if (task.blockedAt) {
-        entries.push({
-          at: task.blockedAt,
-          text: `${task.blockedAt}: ${task.id} became BLOCKED — ${task.blockedReason ?? "reason not recorded"}`,
-        })
-      }
-      if (task.completedAt) {
-        entries.push({
-          at: task.completedAt,
-          text: `${task.completedAt}: ${task.id} completed${task.commitHash ? ` (${task.commitHash.slice(0, 7)})` : ""}`,
-        })
-      }
-      return entries
-    }),
-  )
+function workflowEventLine(event: WorkflowEvent): string {
+  return `- ${formatTimestamp(event.at) ?? event.at}: ${event.summary}`
+}
 
-  return activity
-    .sort((left, right) => right.at.localeCompare(left.at))
-    .map(entry => `- ${entry.text.replace("T", " ").replace(/\.\d{3}Z$/, "Z")}`)
+function buildWorkflowActivityLog(state: ProjectState): string[] {
+  return collectWorkflowEvents(state).map(workflowEventLine)
+}
+
+function formatEventSummary(event?: WorkflowEvent): string {
+  if (!event) return "No workflow events recorded yet."
+  return `${formatTimestamp(event.at) ?? event.at} — ${event.summary}`
 }
 
 function buildProgressSnapshot(state: ProjectState) {
@@ -143,7 +126,19 @@ function buildProgressSnapshot(state: ProjectState) {
   const currentStage = getCurrentProductStage(state)
   const nextDeferredStage = getNextDeferredProductStage(state)
   const blockedTasks = tasks.filter(task => task.status === "BLOCKED")
-  const activityLog = buildTaskActivityLog(state)
+  const activityLog = buildWorkflowActivityLog(state)
+  const latestEvent = findLatestWorkflowEvent(state)
+  const latestPhaseEvent = findLatestWorkflowEvent(state, event => event.kind === "phase_advanced")
+  const latestMilestoneEvent = findLatestWorkflowEvent(state, event =>
+    ["milestone_review_ready", "milestone_merged"].includes(event.kind),
+  )
+  const latestStageEvent = findLatestWorkflowEvent(state, event =>
+    ["stage_deploy_review", "stage_promoted"].includes(event.kind),
+  )
+  const latestPublicSync = findLatestWorkflowEvent(state, event => event.kind === "public_docs_synced")
+  const recentEvents = collectWorkflowEvents(state)
+    .filter(event => event.kind !== "task_started")
+    .slice(0, 5)
 
   const backlog =
     state.execution.milestones.length === 0
@@ -213,6 +208,12 @@ function buildProgressSnapshot(state: ProjectState) {
     worktreeLines,
     currentTaskLabel,
     activityLog,
+    latestEvent,
+    latestMilestoneEvent,
+    latestPhaseEvent,
+    latestPublicSync,
+    recentEvents,
+    latestStageEvent,
     roadmapLines,
     stageLabel,
     nextAction,
@@ -238,6 +239,7 @@ function generateProgressIndexMarkdown(state: ProjectState): string {
 **Current Worktree**: \`${nextWorktreePath(state, snapshot.currentMilestone)}\`
 **Current Task**: ${snapshot.currentTaskLabel}
 **Overall Progress**: [${progressBar(snapshot.doneTasks, snapshot.totalTasks)}] ${snapshot.doneTasks}/${snapshot.totalTasks} Tasks (${snapshot.percent}%)
+**Latest Workflow Event**: ${formatEventSummary(snapshot.latestEvent)}
 **Last Updated**: ${state.updatedAt}
 
 ---
@@ -252,6 +254,7 @@ function generateProgressIndexMarkdown(state: ProjectState): string {
 6. [06 Next Session](./progress/06-next-session.md)
 7. [07 Activity](./progress/07-activity.md)
 8. [08 Roadmap](./progress/08-roadmap.md)
+9. [09 Metrics](./progress/09-metrics.md)
 `
 }
 
@@ -267,14 +270,19 @@ function generateProgressModules(state: ProjectState): Record<string, string> {
 - **Architecture version**: ${state.docs.architecture.version}
 - **Current milestone**: ${snapshot.currentMilestone ? `${snapshot.currentMilestone.id} — ${snapshot.currentMilestone.name}` : "Not yet created"}
 - **Current task**: ${snapshot.currentTaskLabel}
-- **Progress**: [${progressBar(snapshot.doneTasks, snapshot.totalTasks)}] ${snapshot.doneTasks}/${snapshot.totalTasks} Tasks (${snapshot.percent}%)`,
+- **Progress**: [${progressBar(snapshot.doneTasks, snapshot.totalTasks)}] ${snapshot.doneTasks}/${snapshot.totalTasks} Tasks (${snapshot.percent}%)
+- **Latest workflow event**: ${formatEventSummary(snapshot.latestEvent)}
+- **Latest phase transition**: ${formatEventSummary(snapshot.latestPhaseEvent)}
+- **Latest milestone event**: ${formatEventSummary(snapshot.latestMilestoneEvent)}`,
     "02-current-state.md": `## 2. Current State
 
 - **Worktree**: \`${nextWorktreePath(state, snapshot.currentMilestone)}\`
 - **Last updated**: ${state.updatedAt}
 - **Execution source of truth**: \`.harness/state.json\`
 - **Current product stage**: ${snapshot.stageLabel}
-- **Current phase gate**: Run \`bun harness:validate --phase ${state.phase}\` (if applicable)`,
+- **Current phase gate**: Run \`bun harness:validate --phase ${state.phase}\` (if applicable)
+- **Latest stage transition**: ${formatEventSummary(snapshot.latestStageEvent)}
+- **Latest public-doc sync**: ${formatEventSummary(snapshot.latestPublicSync)}`,
     "03-backlog.md": `## 3. Task Backlog
 
 ${snapshot.backlog}`,
@@ -307,20 +315,32 @@ codex "Read docs/PROGRESS.md, docs/progress/, AGENTS.md, ~/.codex/LEARNING.md, t
 
 ## Recent Decision Log
 
-- ${state.updatedAt}: state sync complete
+${snapshot.recentEvents.length > 0
+  ? snapshot.recentEvents.map(event => `- ${formatEventSummary(event)}`).join("\n")
+  : "- No workflow events recorded yet."}
 - Next action: ${snapshot.nextAction}
 `,
-    "07-activity.md": `## 7. Task Activity
+    "07-activity.md": `## 7. Workflow Activity
 
-${snapshot.activityLog.length > 0 ? snapshot.activityLog.join("\n") : "- No task lifecycle events recorded yet."}
+${snapshot.activityLog.length > 0 ? snapshot.activityLog.join("\n") : "- No workflow events recorded yet."}
 `,
     "08-roadmap.md": `## 8. Product Roadmap
 
 - **Current stage**: ${snapshot.stageLabel}
 - **PRD version**: ${state.docs.prd.version}
 - **Architecture version**: ${state.docs.architecture.version}
+- **Latest stage transition**: ${formatEventSummary(snapshot.latestStageEvent)}
 
 ${snapshot.roadmapLines.join("\n")}
+`,
+    "09-metrics.md": `## 9. Metrics
+
+${state.metrics && state.metrics.entries.length > 0
+  ? `- **Last collected**: ${state.metrics.lastCollectedAt ?? "never"}
+- **Total entries**: ${state.metrics.entries.length}
+
+Run \`bun harness:metrics\` for a full summary by category.`
+  : "No metrics recorded yet. Run `bun harness:metrics` to collect."}
 `,
   }
 }

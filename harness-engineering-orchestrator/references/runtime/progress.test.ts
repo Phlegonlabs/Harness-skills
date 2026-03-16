@@ -95,11 +95,30 @@ test("progress docs record task lifecycle details and activity log", () => {
       ],
     },
   ]
+  state.history.events = [
+    {
+      at: "2026-03-15T08:00:00.000Z",
+      kind: "phase_advanced",
+      phase: "EXECUTING",
+      stageId: "V1",
+      summary: "Phase advanced: SCAFFOLD -> EXECUTING",
+      visibility: "public",
+    },
+    {
+      at: "2026-03-15T12:20:00.000Z",
+      kind: "public_docs_synced",
+      phase: "EXECUTING",
+      stageId: "V1",
+      summary: "Public docs synced after phase advanced to EXECUTING (5 files)",
+      visibility: "public",
+    },
+  ]
 
   syncProgressDocuments(state)
 
   expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("8. [08 Roadmap](./progress/08-roadmap.md)")
   expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("Current Product Stage")
+  expect(readFileSync("docs/PROGRESS.md", "utf-8")).toContain("Latest Workflow Event")
 
   const backlog = readFileSync("docs/progress/03-backlog.md", "utf-8")
   expect(backlog).toContain("[~] T102: Build current feature")
@@ -112,9 +131,19 @@ test("progress docs record task lifecycle details and activity log", () => {
   expect(blockers).toContain("2026-03-15 12:00:00Z")
 
   const activity = readFileSync("docs/progress/07-activity.md", "utf-8")
+  expect(activity).toContain("Phase advanced: SCAFFOLD -> EXECUTING")
+  expect(activity).toContain("Public docs synced after phase advanced to EXECUTING")
   expect(activity).toContain("T103 became BLOCKED")
   expect(activity).toContain("T102 entered IN_PROGRESS")
   expect(activity).toContain("T101 completed (abcdef1)")
+
+  const currentState = readFileSync("docs/progress/02-current-state.md", "utf-8")
+  expect(currentState).toContain("Latest public-doc sync")
+  expect(currentState).toContain("2026-03-15 12:20:00Z")
+
+  const nextSession = readFileSync("docs/progress/06-next-session.md", "utf-8")
+  expect(nextSession).toContain("Recent Decision Log")
+  expect(nextSession).toContain("Phase advanced: SCAFFOLD -> EXECUTING")
 
   const roadmap = readFileSync("docs/progress/08-roadmap.md", "utf-8")
   expect(roadmap).toContain("V1: Initial Delivery [ACTIVE]")

@@ -34,8 +34,24 @@ git branch
 bun run typecheck
 ```
 
+### Parallel Execution Awareness
+
+When running as a parallel agent (dispatched via `--parallel`), perform these additional preflight checks:
+
+1. **Check `affectedFiles` scope** — Read the `inlineConstraints.affectedFiles` from the task packet
+2. **Verify no overlap with active agents** — Confirm no other active agent has overlapping `affectedFiles` in `state.execution.activeAgents[]`
+3. **If overlap detected** — Do not start. Report the conflict back to the orchestrator for re-scheduling.
+
+### Scope Change Check
+
+Before beginning implementation, check `state.execution.pendingScopeChanges`:
+- If any scope changes have `status: "pending"`, do not start the task
+- Report the pending scope changes back to the orchestrator
+- The orchestrator will surface them to the user before re-dispatching
+
 ### Outputs
 
 - Safe to start the Task
 - Or scope changed: hand back to Orchestrator / PRD update flow instead of coding
+- Or pending scope changes: hand back to Orchestrator for user review
 - If failed, enter Debug / Blocked flow

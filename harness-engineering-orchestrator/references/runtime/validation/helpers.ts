@@ -100,9 +100,24 @@ export function filesShareHash(...paths: string[]): boolean {
   return rest.every(hash => hash === first)
 }
 
-export async function runBun(args: string[]): Promise<{ ok: boolean; output: string }> {
+export interface ToolchainCommandSpec {
+  command: string
+  optional?: boolean
+}
+
+/** Execute a toolchain command string (e.g. "bun run typecheck", "cargo check"). */
+export async function runToolchainCommand(
+  spec: ToolchainCommandSpec,
+): Promise<{ ok: boolean; output: string }> {
+  if (spec.optional) {
+    // Optional commands that are not configured succeed silently
+    if (spec.command.startsWith("echo ")) {
+      return { ok: true, output: "" }
+    }
+  }
   try {
-    const proc = Bun.spawn(["bun", ...args], { stdout: "pipe", stderr: "pipe" })
+    const parts = spec.command.split(/\s+/)
+    const proc = Bun.spawn(parts, { stdout: "pipe", stderr: "pipe" })
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
@@ -112,6 +127,11 @@ export async function runBun(args: string[]): Promise<{ ok: boolean; output: str
   } catch (error) {
     return { ok: false, output: String(error) }
   }
+}
+
+/** @deprecated Use runToolchainCommand() for ecosystem-agnostic execution. */
+export async function runBun(args: string[]): Promise<{ ok: boolean; output: string }> {
+  return runToolchainCommand({ command: `bun ${args.join(" ")}` })
 }
 
 export function runGit(args: string[]): { ok: boolean; output: string } {

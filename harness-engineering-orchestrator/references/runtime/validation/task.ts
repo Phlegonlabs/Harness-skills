@@ -10,6 +10,7 @@ import {
   findForbiddenPatternHits,
   runBun,
   runGit,
+  runToolchainCommand,
 } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { saveState } from "./state"
@@ -61,11 +62,12 @@ export async function validateTask(
     return
   }
 
-  const typecheck = await runBun(["run", "typecheck"])
-  const lint = await runBun(["run", "lint"])
-  const format = await runBun(["run", "format:check"])
-  const tests = await runBun(["run", "test"])
-  const build = await runBun(["run", "build"])
+  const tc = state.toolchain?.commands
+  const typecheck = await runToolchainCommand(tc?.typecheck ?? { command: "bun run typecheck" })
+  const lint = await runToolchainCommand(tc?.lint ?? { command: "bun run lint" })
+  const format = await runToolchainCommand(tc?.format ?? { command: "bun run format:check" })
+  const tests = await runToolchainCommand(tc?.test ?? { command: "bun test" })
+  const build = await runToolchainCommand(tc?.build ?? { command: "bun run build" })
 
   const overLimit = findFiles("src", [".ts", ".tsx"])
     .map(file => ({ file, lines: countLines(file) }))

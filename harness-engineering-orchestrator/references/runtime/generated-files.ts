@@ -1,15 +1,16 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs"
 import { dirname, join } from "path"
-import type { AIProvider, ProjectState, TeamSize } from "../types"
+import type { AIProvider, Milestone, ProjectState, TeamSize } from "../types"
+import { getCurrentProductStage, getNextDeferredProductStage } from "./stages"
 import { hasAgentSurface, projectTypeSummary, surfaceWorkspaceList } from "./surfaces"
 
-type ManagedFileSpec = {
+export type ManagedFileSpec = {
   content: string
   marker: string
   path: string
 }
 
-type ManagedWriteResult = {
+export type ManagedWriteResult = {
   changed: boolean
   created: boolean
   path: string
@@ -22,10 +23,20 @@ type AutomationContext = {
   description: string
   displayName: string
   hasAgent: boolean
+  publicStatus: PublicDeliveryStatus
   projectName: string
   teamSizeLabel: string
   typeSummary: string
   workspaceList: string[]
+}
+
+type PublicDeliveryStatus = {
+  currentPhase: string
+  currentStage: string
+  lastUpdated: string
+  latestMergedMilestone: string
+  nextStep: string
+  statusSummary: string
 }
 
 const AI_PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -85,6 +96,85 @@ export function listApiServices(): string[] {
     .sort()
 }
 
+function formatLabel(value?: string): string {
+  return value && value.trim().length > 0 ? value : "—"
+}
+
+function latestMergedMilestone(state: ProjectState): Milestone | undefined {
+  const merged = state.execution.milestones.filter(milestone =>
+    ["MERGED", "COMPLETE"].includes(milestone.status),
+  )
+
+  return merged.sort((left, right) => {
+    const leftAt = left.completedAt ?? ""
+    const rightAt = right.completedAt ?? ""
+    if (leftAt === rightAt) {
+      return right.id.localeCompare(left.id)
+    }
+    return rightAt.localeCompare(leftAt)
+  })[0]
+}
+
+function buildPublicStatus(state: ProjectState): PublicDeliveryStatus {
+  const currentStage = getCurrentProductStage(state)
+  const nextDeferredStage = getNextDeferredProductStage(state)
+  const currentMilestone = state.execution.milestones.find(milestone => milestone.id === state.execution.currentMilestone)
+  const latestMilestone = latestMergedMilestone(state)
+
+  let statusSummary = "Project setup is in progress."
+  let nextStep = "Continue the current workflow and validate the active gate before advancing."
+
+  if (state.phase === "EXECUTING" && currentStage?.status === "DEPLOY_REVIEW") {
+    statusSummary = `${currentStage.id} is fully merged and waiting on deploy / real-world review.`
+    nextStep = nextDeferredStage
+      ? `Deploy/test ${currentStage.id}, update PRD / Architecture, then run bun harness:stage --promote ${nextDeferredStage.id}.`
+      : "Deploy/test the current release, then run bun harness:advance when validation can begin."
+  } else if (state.phase === "EXECUTING") {
+    statusSummary = currentMilestone
+      ? `${currentStage?.id ?? "Current stage"} is executing ${currentMilestone.id} — ${currentMilestone.name}.`
+      : `${currentStage?.id ?? "Current stage"} backlog is active and ready for milestone execution.`
+    nextStep = currentMilestone
+      ? "Continue the current milestone and merge it after review-ready closeout."
+      : "Continue the active delivery stage from docs/PROGRESS.md."
+  } else if (state.phase === "VALIDATING") {
+    statusSummary = "Implementation is complete for the active roadmap and final validation is in progress."
+    nextStep = "Run the final validation checklist and close remaining documentation gaps."
+  } else if (state.phase === "COMPLETE") {
+    statusSummary = "Project delivery is complete and the final public-facing artifacts are locked."
+    nextStep = "Use the published docs as the canonical release record."
+  } else if (state.phase === "SCAFFOLD") {
+    statusSummary = "Scaffold baseline is being prepared before execution begins."
+    nextStep = "Finish the scaffold checklist, then advance into EXECUTING."
+  } else if (state.phase === "PRD_ARCH") {
+    statusSummary = "Planning is active: PRD and Architecture are being finalized."
+    nextStep = "Complete the planning docs and validate the phase gate before scaffold work starts."
+  } else {
+    statusSummary = `${state.phase} is in progress.`
+    nextStep = `Complete the ${state.phase} outputs, then run bun harness:advance.`
+  }
+
+  return {
+    currentPhase: state.phase,
+    currentStage: currentStage ? `${currentStage.id} — ${currentStage.name} (${currentStage.status})` : "—",
+    latestMergedMilestone: latestMilestone ? `${latestMilestone.id} — ${latestMilestone.name}` : "None yet",
+    statusSummary,
+    nextStep,
+    lastUpdated: state.updatedAt,
+  }
+}
+
+function renderPublicStatusSection(status: PublicDeliveryStatus): string {
+  return `## Public Delivery Status
+
+- **Current phase**: ${formatLabel(status.currentPhase)}
+- **Current product stage**: ${formatLabel(status.currentStage)}
+- **Latest merged milestone**: ${formatLabel(status.latestMergedMilestone)}
+- **Status**: ${status.statusSummary}
+- **Next public step**: ${status.nextStep}
+- **Last updated**: ${formatLabel(status.lastUpdated)}
+`
+}
+
 function buildContext(state: ProjectState): AutomationContext {
   return {
     aiProviderLabel: AI_PROVIDER_LABELS[state.projectInfo.aiProvider],
@@ -93,6 +183,7 @@ function buildContext(state: ProjectState): AutomationContext {
     description: readPackageDescription(),
     displayName: state.projectInfo.displayName || state.projectInfo.name || "Project",
     hasAgent: hasAgentSurface(state.projectInfo.types),
+    publicStatus: buildPublicStatus(state),
     projectName: state.projectInfo.name || "project",
     teamSizeLabel: TEAM_SIZE_LABELS[state.projectInfo.teamSize],
     typeSummary: projectTypeSummary(state.projectInfo.types),
@@ -122,6 +213,8 @@ ${ctx.description}
 - Progress: [docs/PROGRESS.md](docs/PROGRESS.md)
 - AI workflow: [AGENTS.md](AGENTS.md)
 - GitBook: [docs/gitbook/README.md](docs/gitbook/README.md)
+
+${renderPublicStatusSection(ctx.publicStatus)}
 
 ## Workflow
 
@@ -154,6 +247,8 @@ function renderQuickStart(ctx: AutomationContext): string {
 
   return `## Quick Start
 
+${renderPublicStatusSection(ctx.publicStatus)}
+
 \`\`\`bash
 bun install
 bun .harness/state.ts --show
@@ -176,6 +271,8 @@ function renderDocumentationMap(ctx: AutomationContext): string {
 
   return `## Documentation Map
 
+${renderPublicStatusSection(ctx.publicStatus)}
+
 - \`docs/PRD.md\` / \`docs/prd/\`: Requirements and milestones
 - \`docs/ARCHITECTURE.md\` / \`docs/architecture/\`: Architecture and boundaries
 - \`docs/PROGRESS.md\` / \`docs/progress/\`: Progress and session recovery
@@ -188,6 +285,8 @@ ${skillLine}
 
 function renderTechStack(ctx: AutomationContext): string {
   return `## Tech Stack
+
+${renderPublicStatusSection(ctx.publicStatus)}
 
 | Area | Choice |
 |------|--------|
@@ -205,6 +304,8 @@ function renderGitbookReadme(ctx: AutomationContext): string {
   return `# ${ctx.displayName}
 
 ${ctx.description}
+
+${renderPublicStatusSection(ctx.publicStatus)}
 
 ## What Is ${ctx.projectName}?
 
@@ -323,11 +424,24 @@ ${services}
 export function getManagedDocSpecs(state: ProjectState): ManagedFileSpec[] {
   const ctx = buildContext(state)
   return [
+    ...getManagedPublicDocSpecs(state),
+    ...getManagedPlanningDocSpecs(ctx),
+  ]
+}
+
+export function getManagedPublicDocSpecs(state: ProjectState): ManagedFileSpec[] {
+  const ctx = buildContext(state)
+  return [
     { path: "README.md", marker: "HARNESS:README", content: renderReadme(ctx) },
     { path: "docs/public/quick-start.md", marker: "HARNESS:PUBLIC:QUICKSTART", content: renderQuickStart(ctx) },
     { path: "docs/public/documentation-map.md", marker: "HARNESS:PUBLIC:DOCMAP", content: renderDocumentationMap(ctx) },
     { path: "docs/public/tech-stack.md", marker: "HARNESS:PUBLIC:TECHSTACK", content: renderTechStack(ctx) },
     { path: "docs/gitbook/README.md", marker: "HARNESS:GITBOOK:README", content: renderGitbookReadme(ctx) },
+  ]
+}
+
+function getManagedPlanningDocSpecs(ctx: AutomationContext): ManagedFileSpec[] {
+  return [
     { path: "docs/PRD.md", marker: "HARNESS:PRD:INDEX", content: renderPrdIndex(ctx) },
     { path: "docs/ARCHITECTURE.md", marker: "HARNESS:ARCH:INDEX", content: renderArchitectureIndex(ctx) },
   ]

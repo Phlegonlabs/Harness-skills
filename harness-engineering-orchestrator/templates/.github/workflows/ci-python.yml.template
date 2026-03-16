@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt || true
+      - name: Type check
+        run: mypy src/ --ignore-missing-imports
+      - name: Lint
+        run: ruff check src/
+      - name: Format check
+        run: ruff format --check src/
+      - name: Test
+        run: pytest tests/ -v --tb=short
+      - name: Audit line counts
+        shell: bash
+        run: |
+          if [ -d src ]; then
+            find src -name "*.py" -print0 | while IFS= read -r -d '' file; do
+              lines=$(wc -l < "$file")
+              if [ "$lines" -gt 400 ]; then
+                echo "❌ $file has $lines lines (max 400)"
+                exit 1
+              fi
+            done
+          fi

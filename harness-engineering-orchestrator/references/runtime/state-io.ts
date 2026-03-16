@@ -3,6 +3,13 @@ import { dirname } from "path"
 import type { ProjectState } from "../types"
 import { STATE_PATH } from "./shared"
 
+export class ConcurrencyConflictError extends Error {
+  constructor(public expected: number, public actual: number) {
+    super(`State version conflict: expected ${expected}, got ${actual}`)
+    this.name = "ConcurrencyConflictError"
+  }
+}
+
 const STATE_READ_RETRIES = 3
 
 function ensureParentDir(filePath: string): void {
@@ -43,7 +50,13 @@ function replaceFile(targetPath: string, content: string): void {
     renameSync(tempPath, targetPath)
 
     if (movedCurrentAside && existsSync(backupPath)) {
-      rmSync(backupPath, { force: true })
+      const stableBackupPath = `${targetPath}.backup`
+      try {
+        rmSync(stableBackupPath, { force: true })
+        renameSync(backupPath, stableBackupPath)
+      } catch {
+        rmSync(backupPath, { force: true })
+      }
     }
   } catch (error) {
     if (existsSync(tempPath)) {
@@ -76,5 +89,49 @@ export function readProjectStateFromDisk(filePath = STATE_PATH): ProjectState {
 }
 
 export function writeProjectStateToDisk(state: ProjectState, filePath = STATE_PATH): void {
+  // OCC: if stateVersion is set, verify it matches the version on disk
+  if (state.execution.stateVersion != null) {
+    try {
+      const current = JSON.parse(readStateText(filePath)) as ProjectState
+      const diskVersion = current.execution.stateVersion ?? 0
+      if (diskVersion !== state.execution.stateVersion) {
+        throw new ConcurrencyConflictError(state.execution.stateVersion, diskVersion)
+      }
+    } catch (error) {
+      if (error instanceof ConcurrencyConflictError) throw error
+      // File doesn't exist or is unreadable — first write, no conflict possible
+    }
+    state.execution.stateVersion = (state.execution.stateVersion ?? 0) + 1
+  }
+
   replaceFile(filePath, `${JSON.stringify(state, null, 2)}\n`)
+}
+
+export function withStateTransaction<T>(
+  mutate: (state: ProjectState) => T,
+  filePath = STATE_PATH,
+  maxRetries = 3,
+): T {
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const state = readProjectStateFromDisk(filePath)
+      // Ensure stateVersion is initialized for OCC
+      if (state.execution.stateVersion == null) {
+        state.execution.stateVersion = 0
+      }
+      const result = mutate(state)
+      writeProjectStateToDisk(state, filePath)
+      return result
+    } catch (error) {
+      if (error instanceof ConcurrencyConflictError && attempt < maxRetries) {
+        lastError = error
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
 }

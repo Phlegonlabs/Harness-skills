@@ -11,6 +11,7 @@ import {
   PRD_PATH,
   STATE_PATH,
 } from "../shared"
+import { mergeMilestoneChecklist } from "../task-checklist"
 import {
   countLines,
   filesShareHash,
@@ -35,42 +36,53 @@ export async function validateMilestone(
     return
   }
 
+  // Track checklist results
   const incomplete = milestone.tasks.filter(task => !["DONE", "SKIPPED"].includes(task.status))
-  if (incomplete.length === 0) {
+  const allTasksComplete = incomplete.length === 0
+  if (allTasksComplete) {
     reporter.pass(`All ${milestone.tasks.length} task(s) are complete`)
   } else {
     reporter.failSoft(`${incomplete.length} task(s) are incomplete: ${incomplete.map(task => task.id).join(", ")}`)
   }
 
-  for (const args of [
-    ["run", "typecheck"],
-    ["run", "lint"],
-    ["run", "format:check"],
-    ["test"],
-    ["run", "build"],
-  ]) {
+  const toolchainChecks: { key: "typecheckPassed" | "lintPassed" | "formatPassed" | "testsPassed" | "buildPassed"; args: string[] }[] = [
+    { key: "typecheckPassed", args: ["run", "typecheck"] },
+    { key: "lintPassed", args: ["run", "lint"] },
+    { key: "formatPassed", args: ["run", "format:check"] },
+    { key: "testsPassed", args: ["test"] },
+    { key: "buildPassed", args: ["run", "build"] },
+  ]
+
+  const checkResults: Record<string, boolean> = {}
+  for (const { key, args } of toolchainChecks) {
     const result = await runBun(args)
+    checkResults[key] = result.ok
     if (result.ok) reporter.pass(`bun ${args.join(" ")}`)
     else reporter.failSoft(`bun ${args.join(" ")} failed`, result.output)
   }
 
   const coverage = await runBun(["test", "--coverage"])
+  let coverageMet = false
   if (!coverage.ok) {
     reporter.warn("Unable to parse test coverage automatically; confirm bun test --coverage manually")
   } else {
     const match = coverage.output.match(/(\d+(?:\.\d+)?)%/)
     const value = parseFloat(match?.[1] ?? "0")
-    if (value >= 60) reporter.pass(`Test coverage ${value}%`)
+    coverageMet = value >= 60
+    if (coverageMet) reporter.pass(`Test coverage ${value}%`)
     else reporter.warn(`Coverage ${value}% < 60% (recommended: add more tests)`)
   }
 
   const overLimit = findFiles("src", [".ts", ".tsx"])
     .map(file => ({ file, lines: countLines(file) }))
     .filter(item => item.lines > 400)
-  if (overLimit.length === 0) reporter.pass("All src files are <= 400 lines [G3]")
+  const fileSizeOk = overLimit.length === 0
+  if (fileSizeOk) reporter.pass("All src files are <= 400 lines [G3]")
   else reporter.failSoft(`${overLimit.length} file(s) exceed 400 lines [G3]`, overLimit[0].file)
 
   const forbiddenHits = findForbiddenPatternHits("src", [".ts", ".tsx", ".swift", ".go", ".kt"])
+  const blockingHits = forbiddenHits.filter(hit => hit.blocking)
+  const noBlockingForbiddenPatterns = blockingHits.length === 0
   for (const rule of FORBIDDEN_PATTERN_RULES) {
     const hits = forbiddenHits.filter(hit => hit.label === rule.label)
     if (hits.length === 0) reporter.pass(`No ${rule.label} [G4]`)
@@ -81,16 +93,19 @@ export async function validateMilestone(
     }
   }
 
-  if (filesShareHash("AGENTS.md", "CLAUDE.md")) {
+  const agentsMdSynced = filesShareHash("AGENTS.md", "CLAUDE.md")
+  if (agentsMdSynced) {
     reporter.pass("AGENTS.md == CLAUDE.md [G8]")
   } else {
     reporter.failSoft("AGENTS.md ≠ CLAUDE.md [G8]", "Synchronize CLAUDE.md so it matches AGENTS.md exactly")
   }
 
   const changelogPath = "docs/gitbook/changelog/CHANGELOG.md"
+  let changelogUpdated = false
   if (existsSync(changelogPath)) {
     const changelog = readFileSync(changelogPath, "utf-8")
-    if (changelog.includes(milestoneId) || changelog.includes(milestone.name)) {
+    changelogUpdated = changelog.includes(milestoneId) || changelog.includes(milestone.name)
+    if (changelogUpdated) {
       reporter.pass("CHANGELOG.md was updated")
     } else {
       reporter.failSoft("CHANGELOG.md does not include this milestone", `Update ${changelogPath}`)
@@ -100,8 +115,26 @@ export async function validateMilestone(
   }
 
   const guidePath = `docs/gitbook/guides/${milestoneId.toLowerCase()}.md`
-  if (existsSync(guidePath)) reporter.pass(`GitBook guide is present: ${guidePath}`)
+  const gitbookGuidePresent = existsSync(guidePath)
+  if (gitbookGuidePresent) reporter.pass(`GitBook guide is present: ${guidePath}`)
   else reporter.warn(`GitBook guide is missing: ${guidePath}`)
+
+  // Populate milestone checklist and persist
+  milestone.checklist = mergeMilestoneChecklist(milestone.checklist, {
+    allTasksComplete,
+    typecheckPassed: checkResults["typecheckPassed"] ?? false,
+    lintPassed: checkResults["lintPassed"] ?? false,
+    formatPassed: checkResults["formatPassed"] ?? false,
+    testsPassed: checkResults["testsPassed"] ?? false,
+    buildPassed: checkResults["buildPassed"] ?? false,
+    coverageMet,
+    fileSizeOk,
+    noBlockingForbiddenPatterns,
+    agentsMdSynced,
+    changelogUpdated,
+    gitbookGuidePresent,
+  })
+  saveState(state)
 }
 
 export function computeHarnessScore(state: ProjectState): {
@@ -133,14 +166,19 @@ export function computeHarnessScore(state: ProjectState): {
     [existsSync(".github/workflows/ci.yml"), "CI workflow is present"],
     [existsSync(".github/PULL_REQUEST_TEMPLATE.md"), "PR template is present"],
     [existsSync(".env.example"), ".env.example is present [G6]"],
-    [existsSync("biome.json"), "biome.json is present"],
-    [packageManagerIsBun, "packageManager uses Bun"],
+    [state.scaffold?.linterConfigured ?? existsSync("biome.json"), "Linter/formatter configured"],
+    [state.scaffold?.manifestExists ?? existsSync("package.json"), "Project manifest present and valid"],
     [gitignore.includes(".env"), ".gitignore includes .env [G6]"],
-    [gitignore.includes("node_modules"), ".gitignore includes node_modules [G6]"],
+    [gitignore.includes("node_modules") || gitignore.includes("__pycache__") || gitignore.includes("/target/") || gitignore.includes("/vendor/"), ".gitignore includes ecosystem-specific entries [G6]"],
     [state.docs.adrs.length > 0, `ADR records (${state.docs.adrs.length})`],
     [state.techStack.confirmed, "Tech Stack is confirmed"],
     [state.execution.allMilestonesComplete, "All milestones are complete"],
   ]
+
+  // Use level-scoped critical counts: lite=8, standard=15, full=19
+  const level = state.projectInfo?.harnessLevel?.level ?? "standard"
+  const levelTotal = getHarnessCriticalTotal(level)
+  const levelItems = items.slice(0, levelTotal)
 
   if (items.length !== HARNESS_CRITICAL_TOTAL) {
     throw new Error(
@@ -148,9 +186,9 @@ export function computeHarnessScore(state: ProjectState): {
     )
   }
 
-  const critical = items.filter(([ok]) => ok).length
-  const score = Math.round((critical / HARNESS_CRITICAL_TOTAL) * 100)
-  return { items, score, critical }
+  const critical = levelItems.filter(([ok]) => ok).length
+  const score = Math.round((critical / levelTotal) * 100)
+  return { items: levelItems, score, critical }
 }
 
 export function fullValidation(state: ProjectState, reporter: ValidationReporter): ProjectState {
@@ -186,4 +224,13 @@ export function fullValidation(state: ProjectState, reporter: ValidationReporter
   console.log(`${"─".repeat(55)}\n`)
 
   return state
+}
+
+/** Return the critical total based on harness level. */
+export function getHarnessCriticalTotal(level: "lite" | "standard" | "full"): number {
+  switch (level) {
+    case "lite": return 8
+    case "standard": return 15
+    case "full": return 19
+  }
 }

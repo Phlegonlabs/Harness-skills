@@ -1,8 +1,10 @@
+import { existsSync } from "fs"
 import type {
   AgentId,
   AgentPacketMilestone,
   AgentPacketStage,
   AgentPacketTask,
+  AgentPlatform,
   AgentTaskPacket,
   Milestone,
   ProjectState,
@@ -12,6 +14,12 @@ import { getAgentEntry } from "./agent-registry"
 import { getAgentMaterialPolicy } from "./material-policy"
 import { getPhaseReadiness } from "./phase-readiness"
 import { getCurrentProductStage } from "../stages"
+
+export function detectPlatform(): AgentPlatform {
+  if (process.env.CLAUDE_CODE) return "claude-code"
+  if (existsSync(".codex/session.json")) return "codex-cli"
+  return "unknown"
+}
 
 function getCurrentMilestone(state: ProjectState): Milestone | undefined {
   return state.execution.milestones.find(m => m.id === state.execution.currentMilestone)
@@ -98,6 +106,13 @@ function agentOwnsCurrentPhase(agentId: AgentId, phase: ProjectState["phase"]): 
       return agentId === "scaffold-generator"
     case "VALIDATING":
       return agentId === "harness-validator"
+    case "EXECUTING":
+      return (
+        agentId === "execution-engine" ||
+        agentId === "design-reviewer" ||
+        agentId === "code-reviewer" ||
+        agentId === "frontend-designer"
+      )
     case "COMPLETE":
       return agentId === "context-compactor"
     default:
@@ -123,6 +138,24 @@ function buildAfterCompletion(agentId: AgentId, state: ProjectState, validationC
       `Validation: ${validationCmd}`,
       "Advance: bun harness:advance",
       "Next: Re-run orchestrator to dispatch Market Research.",
+      "  bun .harness/orchestrator.ts",
+    ]
+  }
+
+  if (agentId === "market-research") {
+    return [
+      `Validation: ${validationCmd}`,
+      "Advance: bun harness:advance",
+      "Next: Re-run orchestrator to dispatch Tech Stack Advisor.",
+      "  bun .harness/orchestrator.ts",
+    ]
+  }
+
+  if (agentId === "tech-stack-advisor") {
+    return [
+      `Validation: ${validationCmd}`,
+      "Advance: bun harness:advance",
+      "Next: Re-run orchestrator to dispatch PRD Architect.",
       "  bun .harness/orchestrator.ts",
     ]
   }
@@ -215,7 +248,7 @@ function buildAfterCompletion(agentId: AgentId, state: ProjectState, validationC
   return [`Validation: ${validationCmd}`]
 }
 
-export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): AgentTaskPacket {
+export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState, platform: AgentPlatform = "unknown"): AgentTaskPacket {
   const entry = getAgentEntry(agentId)
   if (!entry) {
     throw new Error(`Agent "${agentId}" not found in registry.`)
@@ -224,7 +257,7 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
   const milestone = getCurrentMilestone(state)
   const task = getCurrentTask(state)
   const validationCmd = formatValidationCommand(agentId, state)
-  const policy = getAgentMaterialPolicy(agentId, state)
+  const policy = getAgentMaterialPolicy(agentId, state, platform)
   const phaseReadiness = getPhaseReadiness(state)
   const phaseOutputs = shouldIncludeCurrentPhaseOutputs(agentId, state.phase)
     ? phaseReadiness
@@ -242,13 +275,66 @@ export function buildAgentTaskPacket(agentId: AgentId, state: ProjectState): Age
     missingOutputs: [...phaseOutputs.missingOutputs],
     optionalRefs: [...policy.optionalRefs],
     phase: state.phase,
+    platform,
     prdVersion: state.docs.prd.version,
     requiredOutputs: [...phaseOutputs.requiredOutputs],
     requiredRefs: [...policy.requiredRefs],
     specPath: entry.specPath,
     taskDod: task ? [...task.dod] : [],
+    timeoutMs: entry.timeoutMs,
     validationCommand: validationCmd,
     worktree: state.execution.currentWorktree || undefined,
+  }
+}
+
+export function buildAgentTaskPacketForTask(
+  agentId: AgentId,
+  state: ProjectState,
+  milestone: Milestone,
+  task: Task,
+  platform: AgentPlatform = "unknown",
+): AgentTaskPacket {
+  const entry = getAgentEntry(agentId)
+  if (!entry) {
+    throw new Error(`Agent "${agentId}" not found in registry.`)
+  }
+
+  const validationCmd = task ? `bun harness:validate --task ${task.id}` : `bun harness:validate --phase ${state.phase}`
+  const policy = getAgentMaterialPolicy(agentId, state, platform)
+  const phaseReadiness = getPhaseReadiness(state)
+  const phaseOutputs = shouldIncludeCurrentPhaseOutputs(agentId, state.phase)
+    ? phaseReadiness
+    : { missingOutputs: [], requiredOutputs: [] }
+
+  // Add affectedFiles scope constraint for parallel execution
+  const constraints = [...policy.inlineConstraints]
+  if (task.affectedFiles.length > 0) {
+    constraints.push(
+      `Parallel execution scope: only modify files in [${task.affectedFiles.join(", ")}]`,
+    )
+  }
+
+  return {
+    agentId,
+    agentName: entry.name,
+    afterCompletion: buildAfterCompletion(agentId, state, validationCmd),
+    architectureVersion: state.docs.architecture.version,
+    currentMilestone: serializeMilestone(milestone),
+    currentStage: serializeStage(state),
+    currentTask: serializeTask(task),
+    inlineConstraints: constraints,
+    missingOutputs: [...phaseOutputs.missingOutputs],
+    optionalRefs: [...policy.optionalRefs],
+    phase: state.phase,
+    platform,
+    prdVersion: state.docs.prd.version,
+    requiredOutputs: [...phaseOutputs.requiredOutputs],
+    requiredRefs: [...policy.requiredRefs],
+    specPath: entry.specPath,
+    taskDod: task ? [...task.dod] : [],
+    timeoutMs: entry.timeoutMs,
+    validationCommand: validationCmd,
+    worktree: milestone.worktreePath || undefined,
   }
 }
 
@@ -261,6 +347,7 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
   lines.push("")
   lines.push(`Agent: ${packet.agentName}`)
   lines.push(`Spec: ${packet.specPath}`)
+  lines.push(`Platform: ${packet.platform}`)
   lines.push(`Packet Mode: selective`)
   lines.push("")
 
@@ -298,6 +385,10 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
     lines.push(`Worktree: ${packet.worktree}`)
   }
   lines.push(`Validation Gate: ${packet.validationCommand}`)
+  if (packet.timeoutMs) {
+    const minutes = Math.round(packet.timeoutMs / 60_000)
+    lines.push(`Soft Time Limit: ${minutes} min — if approaching this limit, checkpoint progress and notify the user`)
+  }
   lines.push("")
 
   if (packet.requiredOutputs.length > 0) {
@@ -345,6 +436,6 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
   return lines.join("\n")
 }
 
-export function buildContext(agentId: AgentId, state: ProjectState): string {
-  return renderAgentTaskPacket(buildAgentTaskPacket(agentId, state))
+export function buildContext(agentId: AgentId, state: ProjectState, platform: AgentPlatform = "unknown"): string {
+  return renderAgentTaskPacket(buildAgentTaskPacket(agentId, state, platform))
 }

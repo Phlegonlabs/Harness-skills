@@ -1,7 +1,7 @@
 import { existsSync } from "fs"
 import type { Phase, ProjectState } from "../../types"
 import { isUiProject } from "../shared"
-import { runBun, runGit } from "./helpers"
+import { runBun, runGit, runToolchainCommand } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { computeHarnessScore } from "./milestone-score"
 import { getPhaseStructuralChecks } from "../phase-structural"
@@ -53,7 +53,25 @@ export async function validatePhaseGate(
     else reporter.failSoft(label, hint)
   }
 
-  for (const item of getPhaseStructuralChecks(phase, state)) {
+  const level = state.projectInfo?.harnessLevel?.level ?? "standard"
+
+  // Filter structural checks by level
+  const structuralChecks = getPhaseStructuralChecks(phase, state)
+  for (const item of structuralChecks) {
+    // Lite: skip GitBook, monorepo workspace, dep-cruiser checks
+    if (level === "lite") {
+      if (item.label.includes("gitbook") || item.label.includes("GitBook") ||
+          item.label.includes("workspace") || item.label.includes("dep-cruiser") ||
+          item.label.includes("dependency-cruiser") || item.label.includes("dep-check")) {
+        continue
+      }
+    }
+    // Standard: skip GitBook, dep-cruiser optional
+    if (level === "standard") {
+      if (item.label.includes("gitbook") || item.label.includes("GitBook")) {
+        continue
+      }
+    }
     check(item.ok, item.label, item.hint)
   }
 
@@ -65,14 +83,15 @@ export async function validatePhaseGate(
       break
 
     case "EXECUTING": {
-      const typecheck = await runBun(["run", "typecheck"])
-      check(typecheck.ok, "bun run typecheck → 0 errors", typecheck.ok ? undefined : typecheck.output)
+      const tc = state.toolchain?.commands
+      const typecheck = await runToolchainCommand(tc?.typecheck ?? { command: "bun run typecheck" })
+      check(typecheck.ok, "typecheck → 0 errors", typecheck.ok ? undefined : typecheck.output)
 
-      const format = await runBun(["run", "format:check"])
-      check(format.ok, "bun run format:check → formatting is clean", format.ok ? undefined : format.output)
+      const format = await runToolchainCommand(tc?.format ?? { command: "bun run format:check" })
+      check(format.ok, "format → formatting is clean", format.ok ? undefined : format.output)
 
-      const build = await runBun(["run", "build"])
-      check(build.ok, "bun run build → success", build.ok ? undefined : build.output)
+      const build = await runToolchainCommand(tc?.build ?? { command: "bun run build" })
+      check(build.ok, "build → success", build.ok ? undefined : build.output)
       break
     }
 

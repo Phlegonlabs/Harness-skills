@@ -10,7 +10,8 @@
 
 import { existsSync } from "fs"
 import { runAutoflow } from "./runtime/orchestrator/autoflow"
-import { dispatch, dispatchCodeReview, dispatchDesignReview, getStatus } from "./runtime/orchestrator/dispatcher"
+import { detectPlatform } from "./runtime/orchestrator/context-builder"
+import { dispatch, dispatchCodeReview, dispatchDesignReview, dispatchParallel, getStatus } from "./runtime/orchestrator/dispatcher"
 import { deriveStateFromFilesystem, STATE_PATH } from "./runtime/shared"
 import { readProjectStateFromDisk } from "./runtime/state-io"
 
@@ -24,6 +25,7 @@ const state = deriveStateFromFilesystem(readProjectStateFromDisk(STATE_PATH), {
   updateValidationTimestamp: false,
 })
 
+const platform = detectPlatform()
 const args = process.argv.slice(2)
 
 if (args.includes("--auto")) {
@@ -31,12 +33,40 @@ if (args.includes("--auto")) {
 }
 
 if (args.includes("--status")) {
-  console.log(getStatus(state))
+  console.log(getStatus(state, platform))
   process.exit(0)
 }
 
+if (args.includes("--parallel")) {
+  const parallelResult = dispatchParallel(state, platform)
+
+  if (args.includes("--packet-json")) {
+    console.log(JSON.stringify(parallelResult, null, 2))
+    process.exit(parallelResult.dispatches.some(d => d.type === "agent") ? 0 : 1)
+  }
+
+  console.log(`Concurrency Mode: ${parallelResult.concurrencyMode}`)
+  console.log(`State Version: ${parallelResult.stateVersion}`)
+  console.log(`Dispatches: ${parallelResult.dispatches.length}`)
+  console.log("")
+
+  for (const [i, d] of parallelResult.dispatches.entries()) {
+    if (parallelResult.dispatches.length > 1) {
+      console.log(`${"─".repeat(40)} Dispatch ${i + 1}`)
+    }
+    if (d.type === "agent" && d.context) {
+      console.log(d.context)
+    } else {
+      console.log(d.message)
+    }
+    console.log("")
+  }
+
+  process.exit(parallelResult.dispatches.some(d => d.type === "agent") ? 0 : 1)
+}
+
 if (args.includes("--review")) {
-  const reviewResult = dispatchDesignReview(state)
+  const reviewResult = dispatchDesignReview(state, platform)
   if (args.includes("--packet-json")) {
     const payload =
       reviewResult.type === "agent" && reviewResult.packet
@@ -59,7 +89,7 @@ if (args.includes("--review")) {
 }
 
 if (args.includes("--code-review")) {
-  const codeReviewResult = dispatchCodeReview(state)
+  const codeReviewResult = dispatchCodeReview(state, platform)
   if (args.includes("--packet-json")) {
     const payload =
       codeReviewResult.type === "agent" && codeReviewResult.packet
@@ -81,7 +111,7 @@ if (args.includes("--code-review")) {
   process.exit(0)
 }
 
-const result = dispatch(state)
+const result = dispatch(state, platform)
 
 if (args.includes("--packet-json")) {
   const payload =

@@ -8,10 +8,11 @@
 
 import type { Phase, ProjectState } from "./types"
 import { deriveExecutionFromPrd } from "./runtime/backlog"
+import { syncPublicManagedDocs } from "./runtime/public-docs"
 import { getCurrentProductStage, hasDeferredProductStages } from "./runtime/stages"
-import { writeState } from "./runtime/state-core"
 import { validatePhaseGate } from "./runtime/validation/phase"
 import { loadState, saveState, syncStateFromFilesystem } from "./runtime/validation/state"
+import { appendWorkflowEvent, createPhaseAdvancedEvent, createTaskStartedEvent } from "./runtime/workflow-history"
 
 type ReporterState = {
   failCount: number
@@ -64,6 +65,12 @@ function getNextPhase(current: Phase): Phase | null {
   }
 }
 
+function getCurrentExecutionTask(state: ProjectState) {
+  const milestone = state.execution.milestones.find(candidate => candidate.id === state.execution.currentMilestone)
+  const task = milestone?.tasks.find(candidate => candidate.id === state.execution.currentTask)
+  return milestone && task ? { milestone, task } : null
+}
+
 async function validateGateOrExit(phase: Phase, state: ProjectState): Promise<void> {
   const reporterState: ReporterState = { passCount: 0, warnCount: 0, failCount: 0 }
   const reporter = createAdvanceReporter(reporterState)
@@ -108,7 +115,25 @@ if (state.phase === "SCAFFOLD") {
 
 await validateGateOrExit(nextPhase, nextState)
 
-const persisted = writeState(nextState)
+appendWorkflowEvent(
+  nextState,
+  createPhaseAdvancedEvent(state.phase, nextState.phase, {
+    stageId: nextState.roadmap.currentStageId || undefined,
+  }),
+)
+
+const currentExecutionTask = getCurrentExecutionTask(nextState)
+if (currentExecutionTask) {
+  appendWorkflowEvent(
+    nextState,
+    createTaskStartedEvent(nextState.phase, currentExecutionTask.milestone, currentExecutionTask.task),
+  )
+}
+
+const persisted = syncPublicManagedDocs(nextState, {
+  stageId: nextState.roadmap.currentStageId || undefined,
+  summary: `Public docs synced after phase advanced to ${nextState.phase}`,
+}).state
 console.log(`\n✅ phase advanced: ${state.phase} -> ${persisted.phase}`)
 if (persisted.phase === "EXECUTING") {
   console.log(`   Current Task: ${persisted.execution.currentTask || "—"}  |  Worktree: ${persisted.execution.currentWorktree || "—"}`)

@@ -71,12 +71,27 @@ function readStdin(): string {
   }
 }
 
+type HarnessLevel = "lite" | "standard" | "full"
+
 function getCurrentPhase(): string {
   try {
     const state = JSON.parse(readFileSync(".harness/state.json", "utf-8"))
     return state.phase ?? ""
   } catch {
     return ""
+  }
+}
+
+function getHarnessLevel(): HarnessLevel {
+  try {
+    const state = JSON.parse(readFileSync(".harness/state.json", "utf-8")) as {
+      projectInfo?: { harnessLevel?: { level?: string } }
+    }
+    const level = state.projectInfo?.harnessLevel?.level
+    if (level === "lite" || level === "standard" || level === "full") return level
+    return "standard"
+  } catch {
+    return "standard"
   }
 }
 
@@ -121,10 +136,18 @@ function isExecutingOrLater(): boolean {
 
 function hookPreCommit(): void {
   const errors: string[] = []
+  const warnings: string[] = []
+  const level = getHarnessLevel()
 
   // G2: No commits on protected branches (only enforced from EXECUTING onward)
+  // Relaxed at Lite: warn instead of block
   if (isExecutingOrLater() && isProtectedBranch()) {
-    errors.push("G2: committing directly on main/master is forbidden. Create a feature branch first.")
+    const msg = "G2: committing directly on main/master is forbidden. Create a feature branch first."
+    if (level === "lite") {
+      warnings.push(msg)
+    } else {
+      errors.push(msg)
+    }
   }
 
   // Get staged files
@@ -158,6 +181,12 @@ function hookPreCommit(): void {
     errors.push(...scanContentForPatterns(content, file))
   }
 
+  if (warnings.length > 0) {
+    console.error("\n[harness-hooks] Pre-commit warnings (Lite — not blocking):\n")
+    for (const w of warnings) console.error(`  ⚠️  ${w}`)
+    console.error("")
+  }
+
   if (errors.length > 0) {
     console.error("\n[harness-hooks] Pre-commit blocked:\n")
     for (const e of errors) console.error(`  - ${e}`)
@@ -168,6 +197,7 @@ function hookPreCommit(): void {
 
 function hookCommitMsg(msgFile: string): void {
   // G10: Only enforce during EXECUTING phase
+  // Relaxed at Lite: warn instead of block
   const phase = getCurrentPhase()
   if (phase !== "EXECUTING") return
   if (isProtectedBranch()) return
@@ -176,33 +206,45 @@ function hookCommitMsg(msgFile: string): void {
 
   const msg = readFileSync(msgFile, "utf-8").trim()
   const currentTask = getCurrentTaskContext()
-  const errors: string[] = []
+  const issues: string[] = []
 
   if (currentTask) {
     if (!msg.includes(currentTask.id)) {
-      errors.push(`G10: commit message must include the current Task-ID (${currentTask.id})`)
+      issues.push(`G10: commit message must include the current Task-ID (${currentTask.id})`)
     }
     if (currentTask.prdRef && !msg.includes(currentTask.prdRef)) {
-      errors.push(`G10: commit message must include the current PRD mapping (${currentTask.prdRef})`)
+      issues.push(`G10: commit message must include the current PRD mapping (${currentTask.prdRef})`)
     }
   } else if (!/T\d{3,}/.test(msg)) {
-    errors.push("G10: commit message must include a Task-ID (e.g. T001, T002)")
+    issues.push("G10: commit message must include a Task-ID (e.g. T001, T002)")
   }
 
-  if (errors.length > 0) {
-    console.error("\n[harness-hooks] Commit-msg blocked:")
-    for (const error of errors) {
-      console.error(`  ${error}`)
+  if (issues.length > 0) {
+    const level = getHarnessLevel()
+    if (level === "lite") {
+      console.error("\n[harness-hooks] Commit-msg warnings (Lite — not blocking):")
+      for (const issue of issues) {
+        console.error(`  ⚠️  ${issue}`)
+      }
+      console.error(`  Current message: "${msg.split(/\r?\n/)[0]}"`)
+      console.error("")
+    } else {
+      console.error("\n[harness-hooks] Commit-msg blocked:")
+      for (const issue of issues) {
+        console.error(`  ${issue}`)
+      }
+      console.error(`  Current message: "${msg.split(/\r?\n/)[0]}"`)
+      console.error("")
+      process.exit(1)
     }
-    console.error(`  Current message: "${msg.split(/\r?\n/)[0]}"`)
-    console.error("")
-    process.exit(1)
   }
 }
 
 function hookPrePush(): void {
   // G5: Dependency direction (only enforced from EXECUTING onward)
+  // Inactive at Lite level
   if (!isExecutingOrLater()) return
+  if (getHarnessLevel() === "lite") return
 
   const result = spawnSync(["bun", "run", "check:deps"])
   if (!result.ok) {
@@ -291,8 +333,14 @@ function claudePreBash(): void {
   const errors: string[] = []
 
   // G2: Block git commit on protected branch (only enforced from EXECUTING onward)
+  // Relaxed at Lite: warn instead of block
   if (/\bgit\s+commit\b/.test(cmd) && isExecutingOrLater() && isProtectedBranch()) {
-    errors.push("G2: git commit on main/master is forbidden. Create a feature branch first.")
+    if (getHarnessLevel() === "lite") {
+      // Lite: allow but log warning (not blocking in Claude hook)
+      console.error("[harness-hooks] ⚠️  G2: git commit on main/master — consider using a feature branch.")
+    } else {
+      errors.push("G2: git commit on main/master is forbidden. Create a feature branch first.")
+    }
   }
 
   // Block dangerous staging commands

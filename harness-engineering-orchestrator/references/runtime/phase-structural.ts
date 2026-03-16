@@ -217,6 +217,15 @@ export function getPhaseStructuralChecks(phase: Phase, state: ProjectState): Str
       ]
 
     case "COMPLETE":
+      return [
+        check(state.validation.score >= 80, "validation.score >= 80"),
+        check(state.docs.readme.isFinal, "docs.readme.isFinal is true"),
+        check(state.execution.allMilestonesComplete, "all milestones are complete"),
+        check(
+          state.execution.milestones.every(milestone => ["COMPLETE", "MERGED"].includes(milestone.status)),
+          "all milestone statuses are COMPLETE / MERGED",
+        ),
+      ]
     case "DISCOVERY":
       return []
   }

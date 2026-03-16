@@ -4,7 +4,7 @@
 
 Manage context-window health for AI agents. After important milestones in the workflow, generate a structured snapshot so the agent can compact context safely without losing critical state.
 
-## Trigger Points
+## Trigger
 
 The Orchestrator calls Context Compactor at these points:
 
@@ -13,54 +13,76 @@ The Orchestrator calls Context Compactor at these points:
 3. **At Project COMPLETE**: act as the final closeout agent and provide compact / archive guidance
 4. **On demand**: show context health guidance with `bun harness:compact --status`
 
-## Retention Tiers
+## Inputs
 
-### 🔴 RETAIN
+- `.harness/state.json`
+- `docs/PROGRESS.md` + `docs/progress/`
+- Current phase, milestone, task state
+- Agent conversation context
 
-- current phase, milestone, task, and worktree path
-- active constraints and guardians (G1-G10)
-- unresolved blockers
-- the latest 3 critical ADR decisions
+## Tasks
 
-### 🟡 PREFER
+### Retention Tiers
 
-- the latest 3 completed task summaries (id, name, commit)
-- remaining tasks in the current milestone
-- the latest LEARNING.md entries
+#### RETAIN (always keep)
 
-### 🟢 SAFE TO DISCARD
+- Current phase, milestone, task, and worktree path
+- Active constraints and guardians (G1-G12)
+- Unresolved blockers
+- The latest 3 critical ADR decisions
 
-- full typecheck/lint/test/build output from completed tasks
-- intermediate debug-loop attempts
-- line-by-line design review details
-- full file contents that were only read and not changed
+#### PREFER (keep if space)
+
+- The latest 3 completed task summaries (id, name, commit)
+- Remaining tasks in the current milestone
+- The latest LEARNING.md entries
+
+#### SAFE TO DISCARD
+
+- Full typecheck/lint/test/build output from completed tasks
+- Intermediate debug-loop attempts
+- Line-by-line design review details
+- Full file contents that were only read and not changed
 - git diff/log output for completed tasks
 
-## Hallucination Detection Signals
+### Hallucination Detection Signals
 
 The Orchestrator should force a compact operation when it detects:
 
-- references to files that do not exist on disk
-- repeated questions about already-confirmed decisions
-- lost worktree location or wrong path usage
-- reversed dependency direction
-- task ID confusion
+- References to files that do not exist on disk
+- Repeated questions about already-confirmed decisions
+- Lost worktree location or wrong path usage
+- Reversed dependency direction
+- Task ID confusion
 
-## Toolchain Adaptation
+### Toolchain Adaptation
 
-### Claude Code
+#### Claude Code
 
 The Context Health section in `AGENTS.md` / `CLAUDE.md` should instruct the agent to:
-- run `bun harness:compact` after each completed task
-- use the snapshot as `/compact` retention guidance
-- run `bun harness:compact --milestone` after milestone merge, then suggest `/clear`
+- Run `bun harness:compact` after each completed task
+- Use the snapshot as `/compact` retention guidance
+- Run `bun harness:compact --milestone` after milestone merge, then suggest `/clear`
 
-### Codex
+#### Codex
 
 The `--milestone` mode also generates `.codex/compact-prompt.md`. The snapshot content is the same; the invocation path differs.
 
-## Output
+## Outputs
 
 Write the snapshot to `docs/progress/CONTEXT_SNAPSHOT.md` and overwrite it on each run.
 Keep it next to `PROGRESS.md` because it belongs to progress state, not to archival docs.
 Task agents should use `docs/PROGRESS.md` plus `docs/progress/CONTEXT_SNAPSHOT.md` for recovery, not scan the entire `docs/progress/` directory by default.
+
+## Done-When
+
+- Snapshot written to `docs/progress/CONTEXT_SNAPSHOT.md`
+- RETAIN tier items are preserved in the snapshot
+- SAFE TO DISCARD items are excluded
+
+## Constraints
+
+- Always preserve RETAIN tier items — never discard current phase/milestone/task context
+- PREFER tier items should only be discarded when context window pressure is high
+- SAFE TO DISCARD items should be aggressively pruned at every compaction
+- Do not modify `.harness/state.json` during compaction — read only

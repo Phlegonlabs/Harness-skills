@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Lint
+        run: ./gradlew checkstyleMain checkstyleTest || true
+      - name: Test
+        run: ./gradlew test
+      - name: Build
+        run: ./gradlew build
+      - name: Audit line counts
+        shell: bash
+        run: |
+          find src -name "*.java" -print0 | while IFS= read -r -d '' file; do
+            lines=$(wc -l < "$file")
+            if [ "$lines" -gt 400 ]; then
+              echo "❌ $file has $lines lines (max 400)"
+              exit 1
+            fi
+          done

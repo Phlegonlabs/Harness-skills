@@ -7,7 +7,10 @@
  */
 
 import { completeMilestone } from "./runtime/execution"
-import { readState } from "./runtime/state-core"
+import { readState, writeState } from "./runtime/state-core"
+import { mergeMilestoneChecklist } from "./runtime/task-checklist"
+import { validateMilestone } from "./runtime/validation/milestone-score"
+import { createReporter } from "./runtime/validation/reporter"
 
 function run(cmd: string[]): { ok: boolean; stdout: string; stderr: string } {
   const proc = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "pipe" })
@@ -60,6 +63,14 @@ if (!compactResult.ok) {
   process.exit(1)
 }
 
+// Track compactCompleted in milestone checklist
+const freshState = readState()
+const freshMilestone = freshState.execution.milestones.find(m => m.id === milestoneId)
+if (freshMilestone) {
+  freshMilestone.checklist = mergeMilestoneChecklist(freshMilestone.checklist, { compactCompleted: true })
+  writeState(freshState)
+}
+
 console.log(`\n🔀 Merging ${milestone.branch} into ${currentBranch}...`)
 const mergeResult = run(["git", "merge", "--no-ff", milestone.branch, "-m", mergeMessage])
 if (!mergeResult.ok) {
@@ -89,6 +100,12 @@ if (!branchDeleteResult.ok) {
   console.warn(`⚠️  Could not delete branch: ${branchDeleteResult.stderr}`)
   console.warn("   You may need to delete it manually: git branch -D " + milestone.branch)
 }
+
+// Validate milestone checklist before completing
+console.log(`\n🔍 Validating milestone ${milestoneId} checklist...`)
+const preCompleteState = readState()
+const reporter = createReporter()
+await validateMilestone(milestoneId, preCompleteState, reporter)
 
 // Update state
 completeMilestone(milestoneId, mergeCommit)

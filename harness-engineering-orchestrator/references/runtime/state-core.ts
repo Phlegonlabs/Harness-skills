@@ -3,6 +3,7 @@ import type { ProjectState } from "../types"
 import { deriveStateFromFilesystem, HARNESS_CRITICAL_TOTAL, PROGRESS_DIR, STATE_PATH } from "./shared"
 import { syncProgressDocuments } from "./progress"
 import { readProjectStateFromDisk, writeProjectStateToDisk } from "./state-io"
+import { ensureWorkflowHistory } from "./workflow-history"
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Array<unknown>
@@ -22,15 +23,27 @@ export function readState(): ProjectState {
   if (!existsSync(STATE_PATH)) {
     throw new Error("State not initialized. Run harness-init first.")
   }
-  return readProjectStateFromDisk(STATE_PATH)
+  try {
+    return ensureWorkflowHistory(readProjectStateFromDisk(STATE_PATH))
+  } catch (error) {
+    const backupPath = `${STATE_PATH}.backup`
+    if (existsSync(backupPath)) {
+      console.warn("⚠️  Primary state file is corrupt — recovering from backup.")
+      const recovered = ensureWorkflowHistory(readProjectStateFromDisk(backupPath))
+      writeProjectStateToDisk(recovered, STATE_PATH)
+      return recovered
+    }
+    throw error
+  }
 }
 
 export function refreshDerivedState(state: ProjectState): ProjectState {
-  return deriveStateFromFilesystem(state, { updateProgressTimestamp: true })
+  return ensureWorkflowHistory(deriveStateFromFilesystem(state, { updateProgressTimestamp: true }))
 }
 
 export function writeState(state: ProjectState): ProjectState {
   ensureProjectDirs()
+  state.execution.stateVersion = (state.execution.stateVersion ?? 0) + 1
   const normalized = refreshDerivedState(state)
   syncProgressDocuments(normalized)
   normalized.docs.progress.exists = true
@@ -54,6 +67,7 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       aiProvider: "none",
       teamSize: "solo",
       isGreenfield: true,
+      harnessLevel: { level: "standard", autoDetected: true, detectedAt: new Date().toISOString() },
     },
     marketResearch: { summary: "", competitors: [], techTrends: [] },
     techStack: { confirmed: false, decisions: [] },
@@ -95,7 +109,9 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       ciExists: false,
       cdExists: false,
       prTemplateExists: false,
-      depCruiserConfigured: false,
+      depCheckConfigured: false,
+      linterConfigured: false,
+      manifestExists: false,
       githubSetup: false,
     },
     roadmap: {
@@ -108,6 +124,9 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       currentWorktree: "",
       milestones: [],
       allMilestonesComplete: false,
+    },
+    history: {
+      events: [],
     },
     validation: { score: 0, criticalPassed: 0, criticalTotal: HARNESS_CRITICAL_TOTAL },
     github: {
@@ -122,6 +141,26 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       labelsCreated: false,
       issueTemplatesCreated: false,
     },
+    toolchain: {
+      ecosystem: "bun",
+      packageManager: "bun",
+      language: "typescript",
+      commands: {
+        install: { command: "bun install" },
+        typecheck: { command: "bun run typecheck" },
+        lint: { command: "bun run lint" },
+        format: { command: "bun run format" },
+        test: { command: "bun test" },
+        build: { command: "bun run build" },
+      },
+      sourceExtensions: [".ts", ".tsx", ".js", ".jsx"],
+      sourceRoot: "src",
+      manifestFile: "package.json",
+      lockFile: "bun.lockb",
+      forbiddenPatterns: [],
+      ignorePatterns: ["node_modules/", "dist/", ".harness/"],
+    },
+    metrics: { entries: [], lastCollectedAt: undefined },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...partial,

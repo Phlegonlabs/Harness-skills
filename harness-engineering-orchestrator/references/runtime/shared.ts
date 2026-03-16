@@ -193,7 +193,9 @@ export function deriveStateFromFilesystem(
   next.scaffold.ciExists = existsSync(".github/workflows/ci.yml")
   next.scaffold.cdExists = existsSync(".github/workflows/release.yml")
   next.scaffold.prTemplateExists = existsSync(".github/PULL_REQUEST_TEMPLATE.md")
-  next.scaffold.depCruiserConfigured = dependencyCruiserConfigured()
+  next.scaffold.depCheckConfigured = dependencyCruiserConfigured()
+  next.scaffold.linterConfigured = existsSync("biome.json") || existsSync(".eslintrc.json") || existsSync(".eslintrc.js") || existsSync("ruff.toml") || existsSync("pyproject.toml")
+  next.scaffold.manifestExists = existsSync(next.toolchain?.manifestFile ?? "package.json")
   next.scaffold.githubSetup = next.scaffold.githubSetup || next.github?.repoCreated === true
 
   if (isUiProject(next.projectInfo.types)) {

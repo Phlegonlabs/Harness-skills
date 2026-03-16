@@ -10,9 +10,11 @@
 import { mkdirSync, writeFileSync } from "fs"
 import { dirname } from "path"
 import { syncExecutionFromPrd, syncRoadmapFromPrd } from "./runtime/backlog"
+import { syncPublicManagedDocs } from "./runtime/public-docs"
 import { getCurrentProductStage, getNextDeferredProductStage } from "./runtime/stages"
 import { readState, writeState } from "./runtime/state-core"
 import { ARCHITECTURE_DIR, ARCHITECTURE_PATH, PRD_DIR, PRD_PATH, readDocument } from "./runtime/shared"
+import { appendWorkflowEvent, createStagePromotedEvent, createTaskStartedEvent } from "./runtime/workflow-history"
 
 type CliArgs = {
   promote?: string
@@ -171,7 +173,26 @@ function promoteStage(stageId: string): void {
   roadmapState.roadmap.currentStageId = targetStage.id
 
   const syncedExecution = syncExecutionFromPrd(roadmapState)
-  const persisted = writeState(syncedExecution.state)
+  appendWorkflowEvent(
+    syncedExecution.state,
+    createStagePromotedEvent(syncedExecution.state.phase, currentStage.id, targetStage.id),
+  )
+
+  const currentMilestone = syncedExecution.state.execution.milestones.find(
+    milestone => milestone.id === syncedExecution.state.execution.currentMilestone,
+  )
+  const currentTask = currentMilestone?.tasks.find(task => task.id === syncedExecution.state.execution.currentTask)
+  if (currentMilestone && currentTask) {
+    appendWorkflowEvent(
+      syncedExecution.state,
+      createTaskStartedEvent(syncedExecution.state.phase, currentMilestone, currentTask),
+    )
+  }
+
+  const persisted = syncPublicManagedDocs(syncedExecution.state, {
+    stageId: targetStage.id,
+    summary: `Public docs synced after promoting ${targetStage.id}`,
+  }).state
 
   console.log(`✅ Product stage promoted: ${currentStage.id} -> ${targetStage.id}`)
   console.log(`   PRD snapshot: ${prdSnapshotPath}`)

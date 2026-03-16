@@ -1,4 +1,4 @@
-import type { SpikeChecklist, TaskChecklist } from "../types"
+import type { MilestoneChecklist, SpikeChecklist, TaskChecklist } from "../types"
 
 export function createEmptyTaskChecklist(): TaskChecklist {
   return {
@@ -42,4 +42,37 @@ export function mergeSpikeChecklist(
     ...(current ?? {}),
     ...(updates ?? {}),
   }
+}
+
+export function createEmptyMilestoneChecklist(): MilestoneChecklist {
+  return {
+    allTasksComplete: false,
+    typecheckPassed: false,
+    lintPassed: false,
+    formatPassed: false,
+    testsPassed: false,
+    buildPassed: false,
+    coverageMet: false,
+    fileSizeOk: false,
+    noBlockingForbiddenPatterns: false,
+    agentsMdSynced: false,
+    changelogUpdated: false,
+    gitbookGuidePresent: false,
+    compactCompleted: false,
+  }
+}
+
+export function mergeMilestoneChecklist(
+  current?: Partial<MilestoneChecklist> | null,
+  updates?: Partial<MilestoneChecklist>,
+): MilestoneChecklist {
+  const base = createEmptyMilestoneChecklist()
+  const merged = { ...base, ...(current ?? {}), ...(updates ?? {}) }
+  // OR-merge: once true, stays true
+  for (const key of Object.keys(base) as (keyof MilestoneChecklist)[]) {
+    if ((current as Record<string, boolean> | null)?.[key] === true) {
+      merged[key] = true
+    }
+  }
+  return merged
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { dirname, join } from "path"
-import type { ProjectState } from "../../types"
+import type { MilestoneChecklist, ProjectState } from "../../types"
 import { completeTask } from "../execution"
 import { initState } from "../state-core"
 import { writeProjectStateToDisk } from "../state-io"
@@ -10,6 +10,24 @@ import { runAutoflow } from "./autoflow"
 
 const MERGE_SCRIPT_PATH = join(import.meta.dir, "..", "..", "harness-merge-milestone.ts").replace(/\\/g, "/")
 const COMPACT_SCRIPT_SOURCE = join(import.meta.dir, "..", "..", "harness-compact.ts")
+
+function passingMilestoneChecklist(): MilestoneChecklist {
+  return {
+    allTasksComplete: true,
+    typecheckPassed: true,
+    lintPassed: true,
+    formatPassed: true,
+    testsPassed: true,
+    buildPassed: true,
+    coverageMet: true,
+    fileSizeOk: true,
+    noBlockingForbiddenPatterns: true,
+    agentsMdSynced: true,
+    changelogUpdated: true,
+    gitbookGuidePresent: true,
+    compactCompleted: true,
+  }
+}
 
 let originalCwd = ""
 let workspaceDir = ""
@@ -65,6 +83,7 @@ function createExecutingState(): ProjectState {
       branch: "milestone/m1-foundation",
       worktreePath: "",
       status: "REVIEW",
+      checklist: passingMilestoneChecklist(),
       tasks: [
         {
           id: "T101",
@@ -150,6 +169,7 @@ function createStageBoundaryState(): ProjectState {
       branch: "milestone/m1-foundation",
       worktreePath: "../stage-boundary-fixture-m1",
       status: "REVIEW",
+      checklist: passingMilestoneChecklist(),
       tasks: [
         {
           id: "T101",
@@ -304,6 +324,12 @@ test("autoflow auto-merges review milestones, compacts, and continues to the nex
   expect(snapshot).toContain("- **Milestone**: M1")
   expect(snapshot).toContain("Target milestone: M1")
 
+  const readme = readFileSync(join(workspaceDir, "README.md"), "utf-8")
+  expect(readme).toContain("Public Delivery Status")
+  expect(readme).toContain("Latest merged milestone")
+  expect(readme).toContain("M1 — Foundation")
+  expect(readme).toContain("V1 — Initial Delivery (ACTIVE)")
+
   expect(readFileSync(join(workspaceDir, "feature.txt"), "utf-8")).toContain("merged from review milestone")
   expect(runGit(["branch", "--list", "milestone/m1-foundation"]).output).toBe("")
 })
@@ -384,6 +410,16 @@ test("autoflow stops at deploy review when the current delivery version is fully
   expect(updated.roadmap.currentStageId).toBe("V1")
   expect(updated.roadmap.stages[0]?.status).toBe("DEPLOY_REVIEW")
   expect(updated.roadmap.stages[1]?.status).toBe("DEFERRED")
+
+  const readme = readFileSync(join(workspaceDir, "README.md"), "utf-8")
+  expect(readme).toContain("V1 — Initial Delivery (DEPLOY_REVIEW)")
+  expect(readme).toContain("Deploy/test V1")
+
+  const gitbookReadme = readFileSync(join(workspaceDir, "docs/gitbook/README.md"), "utf-8")
+  expect(gitbookReadme).toContain("Public Delivery Status")
+  expect(gitbookReadme).toContain("Latest merged milestone")
+  expect(gitbookReadme).toContain("M1 — Foundation")
+
   expect(runGit(["branch", "--list", "milestone/m1-foundation"]).output).toBe("")
 })
 

@@ -4,6 +4,10 @@
 
 Complete the repo bootstrap and Harness Engineering and Orchestrator scaffold closeout required to enter `EXECUTING`, based on the confirmed PRD and Architecture documents.
 
+## Trigger
+
+Dispatched by the Orchestrator when `phase === "SCAFFOLD"`.
+
 ## Inputs
 
 - `.harness/state.json`
@@ -11,12 +15,24 @@ Complete the repo bootstrap and Harness Engineering and Orchestrator scaffold cl
 - `docs/ARCHITECTURE.md` + `docs/architecture/`
 - `README.md`
 - `AGENTS.md` / `CLAUDE.md`
+- Harness level (`state.projectInfo.harnessLevel.level`)
 
 ## Tasks
 
-Complete each group in order. Verify each item exists before moving on.
+### Level-Scoped File Counts
+
+| Level | Target Files | Notes |
+|-------|-------------|-------|
+| Lite | ~5-8 files | No monorepo, no GitBook, no ADR directory. Minimal: state.json, orchestrator.ts, AGENTS.md, CLAUDE.md, PRD.md, ARCHITECTURE.md, package.json, .env.example |
+| Standard | ~25-35 files | Monorepo optional. Full Harness runtime, CI, PR template, docs structure, biome config |
+| Full | 60+ files | Full monorepo structure, GitBook, ADR directory, PR template, CI workflows, ecosystem-specific configs |
+
+### Ecosystem-Specific Template Selection
+
+Select scaffold templates based on the confirmed tech stack and detected ecosystem. Reference `templates/.github/workflows/` for CI workflow templates matching the project language (TypeScript, Python, Go, Rust, Java, Kotlin).
 
 ### Group 1: Harness Runtime
+
 - [ ] `.harness/state.json`
 - [ ] `.harness/orchestrator.ts`
 - [ ] `.harness/advance.ts`
@@ -25,35 +41,41 @@ Complete each group in order. Verify each item exists before moving on.
 - [ ] `.harness/validate.ts`
 
 ### Group 2: Agent Specs and Config
+
 - [ ] `AGENTS.md` exists and matches `CLAUDE.md` exactly (G8)
 - [ ] `CLAUDE.md` exists
 - [ ] `.env.example` exists
-- [ ] `biome.json` exists
-- [ ] `tsconfig.json` exists
+- [ ] `biome.json` exists (Standard/Full)
+- [ ] `tsconfig.json` exists (if TypeScript project)
 
 ### Group 3: Documentation Baseline
+
 - [ ] `docs/PRD.md` or `docs/prd/` exists
 - [ ] `docs/ARCHITECTURE.md` or `docs/architecture/` exists
 - [ ] `docs/PROGRESS.md` or `docs/progress/` exists
-- [ ] `docs/gitbook/SUMMARY.md` exists
-- [ ] `docs/adr/` exists
+- [ ] `docs/gitbook/SUMMARY.md` exists (Standard/Full only)
+- [ ] `docs/adr/` exists (Standard/Full only)
 
 ### Group 4: Build Infrastructure
+
 - [ ] `package.json` has `harness:advance`, `harness:validate`, `harness:compact` scripts
 - [ ] `package.json` has `typecheck`, `format:check`, `build` scripts
-- [ ] CI/CD pipeline files exist (`.github/workflows/`)
-- [ ] PR template exists (`.github/pull_request_template.md`)
+- [ ] CI/CD pipeline files exist (`.github/workflows/`) (Standard/Full)
+- [ ] PR template exists (`.github/pull_request_template.md`) (Full only)
 - [ ] Workspace structure matches Architecture doc
 
 ### Group 5: Verification
+
 - [ ] `bun install` succeeds
 - [ ] `bun run typecheck` passes
 - [ ] `bun run build` passes
 - [ ] `bun harness:validate --phase EXECUTING` passes
 
+Complete each group in order. Verify each item exists before moving on.
+
 Do NOT bootstrap product frameworks (Next.js, Tauri, Expo) during scaffold. Only prepare the Harness program, orchestration runtime, monorepo shape, and milestone/task flow.
 
-## Phase Completion
+### Phase Completion
 
 After all groups are verified:
 
@@ -64,12 +86,20 @@ After all groups are verified:
 
 ## Outputs
 
-- a complete Harness Engineering and Orchestrator scaffold
-- a parseable milestone / task backlog
-- the minimum repo structure required for `EXECUTING`
+- A complete Harness Engineering and Orchestrator scaffold
+- A parseable milestone / task backlog
+- The minimum repo structure required for `EXECUTING`
 
-## Done When
+## Done-When
 
 - `bun harness:advance` succeeds
 - `bun harness:validate --phase EXECUTING` passes
-- rerunning `bun .harness/orchestrator.ts` dispatches the next runtime agent
+- Rerunning `bun .harness/orchestrator.ts` dispatches the next runtime agent
+
+## Constraints
+
+- At Lite level, generate only ~5-8 files — skip GitBook, ADR directory, monorepo structure, PR template
+- At Standard level, generate ~25-35 files — monorepo optional, GitBook optional
+- At Full level, generate 60+ files — full structure required
+- Do NOT bootstrap product frameworks during scaffold
+- Select CI workflow templates matching the project ecosystem

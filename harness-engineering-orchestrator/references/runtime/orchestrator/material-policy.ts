@@ -1,5 +1,5 @@
 import { existsSync } from "fs"
-import type { AgentId, AgentMaterialPolicy, ProjectState, Task } from "../../types"
+import type { AgentId, AgentMaterialPolicy, AgentPlatform, ProjectState, Task } from "../../types"
 import { getAgentEntry } from "./agent-registry"
 
 const CONTEXT_SNAPSHOT_PATH = "docs/progress/CONTEXT_SNAPSHOT.md"
@@ -74,6 +74,17 @@ function commonConstraints(): string[] {
     "LEARNING.md must not enter the repo; use ~/.codex/LEARNING.md or ~/.claude/LEARNING.md [G9].",
     "Use explicit validation gates before progression; do not hand-wave completion.",
   ]
+}
+
+function platformConstraints(platform: AgentPlatform): string[] {
+  switch (platform) {
+    case "claude-code":
+      return ["PreToolUse hooks enforce guardians at write time — if a write is rejected, fix the pattern and retry."]
+    case "codex-cli":
+      return ["Codex notify hooks detect violations after action; git pre-commit hooks are the final guardrail — verify guardian compliance before committing."]
+    default:
+      return []
+  }
 }
 
 function executionConstraints(task?: Task): string[] {
@@ -202,54 +213,96 @@ function packetRefsFor(agentId: AgentId, state: ProjectState): { optionalRefs: s
         ]),
         optionalRefs: existingRefs(progressRefs()),
       }
+
+    case "entropy-scanner":
+    case "fast-path-bootstrap":
+      return {
+        requiredRefs: existingRefs(base),
+        optionalRefs: existingRefs(progressRefs()),
+      }
   }
 }
 
-export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState): AgentMaterialPolicy {
+export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState, platform: AgentPlatform = "unknown"): AgentMaterialPolicy {
   const task = getCurrentTask(state)
   const { optionalRefs, requiredRefs } = packetRefsFor(agentId, state)
 
   switch (agentId) {
-    case "execution-engine":
+    case "execution-engine": {
+      const conditions = task?.isUI ? ["Attach design materials only for UI tasks."] : undefined
+      if (task?.isUI) {
+        const designSystemExists = existsSync(DESIGN_SYSTEM_PATH)
+        const milestoneSpec = currentMilestoneSpecPath(state)
+        if (!designSystemExists || !milestoneSpec) {
+          const warnings = conditions ?? []
+          warnings.push("WARNING: Design materials incomplete for UI task — implementation may lack visual guidance.")
+          return {
+            agentId,
+            conditions: warnings,
+            inlineConstraints: [...commonConstraints(), ...platformConstraints(platform), ...executionConstraints(task)],
+            optionalRefs,
+            requiredRefs,
+          }
+        }
+      }
       return {
         agentId,
         conditions: task?.isUI ? ["Attach design materials only for UI tasks."] : undefined,
-        inlineConstraints: [...commonConstraints(), ...executionConstraints(task)],
+        inlineConstraints: [...commonConstraints(), ...platformConstraints(platform), ...executionConstraints(task)],
         optionalRefs,
         requiredRefs,
       }
+    }
 
-    case "design-reviewer":
+    case "design-reviewer": {
+      const conditions = ["Only valid for IN_PROGRESS UI tasks."]
+      const designSystemExists = existsSync(DESIGN_SYSTEM_PATH)
+      const milestoneSpec = currentMilestoneSpecPath(state)
+      if (!designSystemExists) {
+        conditions.push("WARNING: DESIGN_SYSTEM.md is missing — design review may lack baseline.")
+      }
+      if (!milestoneSpec) {
+        conditions.push("WARNING: Milestone UI spec is missing — design review has no reference target.")
+      }
       return {
         agentId,
-        conditions: ["Only valid for IN_PROGRESS UI tasks."],
+        conditions,
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Review against the current milestone UI spec only; do not fan out into unrelated docs.",
           "Block commit if Design Review approval is missing for a UI task [G7].",
         ],
         optionalRefs,
         requiredRefs,
       }
+    }
 
-    case "frontend-designer":
+    case "frontend-designer": {
+      const conditions = ["Attach design materials only for the active UI milestone."]
+      if (!prdRef("design")) {
+        conditions.push("WARNING: PRD design section is missing — design output will rely on inferred requirements.")
+      }
       return {
         agentId,
-        conditions: ["Attach design materials only for the active UI milestone."],
+        conditions,
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Define or update the design system only for the active product surface.",
           "Design output must cover loading, empty, error, responsive, and accessibility states.",
         ],
         optionalRefs,
         requiredRefs,
       }
+    }
 
     case "harness-validator":
       return {
         agentId,
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Validate against runtime gates and current state, not against broad documentation scans.",
         ],
         optionalRefs,
@@ -261,6 +314,7 @@ export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState): A
         agentId,
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Use docs/PROGRESS.md and CONTEXT_SNAPSHOT for recovery guidance; do not scan docs/progress/ by default.",
         ],
         optionalRefs,
@@ -272,6 +326,7 @@ export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState): A
         agentId,
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Do not bootstrap product frameworks during scaffold setup; stay at the Harness baseline.",
         ],
         optionalRefs,
@@ -284,6 +339,7 @@ export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState): A
         conditions: ["Only valid for non-UI IN_PROGRESS tasks."],
         inlineConstraints: [
           ...commonConstraints(),
+          ...platformConstraints(platform),
           "Review security practices: no hardcoded secrets, proper input validation, safe dependency usage.",
           "Review performance: avoid unnecessary re-renders, O(n²) loops, unbounded queries, and memory leaks.",
           "Review architecture: verify dependency direction, layer separation, and adherence to project conventions.",
@@ -295,7 +351,7 @@ export function getAgentMaterialPolicy(agentId: AgentId, state: ProjectState): A
     default:
       return {
         agentId,
-        inlineConstraints: commonConstraints(),
+        inlineConstraints: [...commonConstraints(), ...platformConstraints(platform)],
         optionalRefs,
         requiredRefs,
       }

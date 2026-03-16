@@ -169,6 +169,9 @@ function materializeScaffoldArtifacts(state: ProjectState): void {
     "agents/code-reviewer.md",
     "agents/harness-validator.md",
     "agents/context-compactor.md",
+    "agents/entropy-scanner.md",
+    "agents/fast-path-bootstrap.md",
+    "agents/execution-engine/06-observability.md",
   ]) {
     write(path, "# agent\n")
   }

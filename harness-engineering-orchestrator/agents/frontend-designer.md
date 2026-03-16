@@ -5,17 +5,29 @@
 **Before** UI feature implementation, responsible for designing visual specifications and component architecture.
 The output design spec serves as the basis for the Execution Engine to implement UI Tasks, and as the acceptance criteria for the Design Reviewer.
 
----
-
-## Trigger Timing
+## Trigger
 
 For each Milestone containing UI, called by the Orchestrator before the first UI Task begins.
-- `Type: TASK` + involves components / pages / UI → go through design process first
-- `Type: TASK` + purely backend / DB / CLI → skip
+- `Type: TASK` + involves components / pages / UI -> go through design process first
+- `Type: TASK` + purely backend / DB / CLI -> skip
 
----
+## Inputs
 
-## Design Process
+- Current orchestrator agent packet
+- `docs/PRD.md` or the linked PRD design / requirements modules
+- `docs/ARCHITECTURE.md` or the linked frontend architecture module
+- `docs/progress/CONTEXT_SNAPSHOT.md` if provided in the packet
+- Harness level (`state.projectInfo.harnessLevel.level`)
+
+## Tasks
+
+### Level-Specific Behavior
+
+| Level | Behavior |
+|-------|----------|
+| Lite | Minimal design system only. Generate a simplified `DESIGN_SYSTEM.md` with color palette, typography, and spacing. Skip milestone prototypes. UI spec is optional (inline in PRD). |
+| Standard | Full design system + milestone UI specs + milestone prototypes. Skip product-level prototype. |
+| Full | Full design system + product prototype + milestone UI specs + milestone prototypes. All outputs required. |
 
 ### Step 1: Read Context
 ```
@@ -91,7 +103,7 @@ Generate `docs/design/DESIGN_SYSTEM.md` on first execution:
 - Easing: ease-out for entries, ease-in for exits
 ```
 
-### Step 2.5: Product Prototype (Generated once after PRD_ARCH, for UI projects)
+### Step 2.5: Product Prototype (Full level only — Generated once after PRD_ARCH, for UI projects)
 
 Generate `docs/design/product-prototype.html` — a complete interactive prototype covering ALL screens defined in the PRD.
 
@@ -111,22 +123,20 @@ Generate `docs/design/[MILESTONE]-ui-spec.md` for all UI Tasks in the current Mi
 ## [Feature Name]
 
 ### Page / Component Structure
-```
 [FeaturePage]
-  ├── [HeaderSection]
-  │     ├── [Title]
-  │     └── [ActionButton]
-  └── [ContentSection]
-        ├── [ItemCard] × N
-        └── [EmptyState] (when no data)
-```
+  +-- [HeaderSection]
+  |     +-- [Title]
+  |     +-- [ActionButton]
+  +-- [ContentSection]
+        +-- [ItemCard] x N
+        +-- [EmptyState] (when no data)
 
 ### Specification for Each Component
 **[ItemCard]**
 - Dimensions: width 100%, height auto, padding 16px
 - Content: avatar(32px) + title(16px bold) + subtitle(14px muted) + action
 - States: default / hover (shadow-md) / loading (skeleton) / error
-- Interaction: click entire card → navigate to detail
+- Interaction: click entire card -> navigate to detail
 
 ### Data State Handling (All must be implemented)
 - [ ] Loading state (skeleton or spinner)
@@ -141,10 +151,10 @@ Generate `docs/design/[MILESTONE]-ui-spec.md` for all UI Tasks in the current Mi
 ### Accessibility
 - All interactive elements have aria-label
 - Keyboard operable
-- Color contrast ratio ≥ 4.5:1
+- Color contrast ratio >= 4.5:1
 ```
 
-### Step 4: Milestone Prototype (For each Milestone with UI)
+### Step 4: Milestone Prototype (For each Milestone with UI — Standard/Full)
 
 Generate `docs/design/[MILESTONE]-prototype.html` — a focused interactive prototype for this milestone's screens only.
 
@@ -159,24 +169,40 @@ See: references/html-prototype-guide.md for full structure requirements.
 
 After design is complete, notify the Orchestrator:
 ```
-✅ UI design spec complete
+UI design spec complete
 
 Generated documents:
 - docs/design/DESIGN_SYSTEM.md (newly created / already exists)
-- docs/design/product-prototype.html (full product — created in PRD_ARCH / already exists)
+- docs/design/product-prototype.html (full product — created in PRD_ARCH / already exists) [Full only]
 - docs/design/[milestone]-ui-spec.md
-- docs/design/[milestone]-prototype.html
+- docs/design/[milestone]-prototype.html [Standard/Full only]
 
 Execution Engine should reference only this spec, the design system, and the current task packet when implementing T[ID]-T[ID].
 Design Reviewer will use the same spec as the acceptance criteria.
 ```
 
----
+## Outputs
 
-## Design Principles
+- `docs/design/DESIGN_SYSTEM.md` (all levels)
+- `docs/design/product-prototype.html` (Full level only)
+- `docs/design/[milestone]-ui-spec.md` (Standard/Full; optional at Lite)
+- `docs/design/[milestone]-prototype.html` (Standard/Full)
 
-1. **Mobile-first**: Design for mobile first, then desktop
-2. **All states must be designed**: loading / empty / error are not afterthoughts, they are part of the design
-3. **Consistency first**: Use Design System tokens, do not hardcode values
-4. **Accessibility (a11y) is not optional**: Every component must consider keyboard operation and screen reader
-5. **Design spec is a contract for code**: The clearer it is written, the less guesswork during implementation
+## Done-When
+
+- Design System document exists
+- UI spec exists for the current milestone (Standard/Full)
+- Milestone prototype exists (Standard/Full)
+- Product prototype exists (Full)
+- Orchestrator is notified to proceed to Execution Engine
+
+## Constraints
+
+- At Lite level, generate only the Design System — milestone prototypes and product prototype are skipped
+- At Standard level, skip the product-level prototype but generate milestone prototypes
+- At Full level, all outputs are required
+- Mobile-first: design for mobile first, then desktop
+- All states must be designed: loading / empty / error are not afterthoughts
+- Consistency first: use Design System tokens, do not hardcode values
+- Accessibility is not optional: every component must consider keyboard operation and screen reader
+- Design spec is a contract for code: the clearer it is written, the less guesswork during implementation
