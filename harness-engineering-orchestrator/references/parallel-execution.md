@@ -2,112 +2,148 @@
 
 ## Purpose
 
-Reference guide for the multi-agent parallel execution model. Covers concurrency modes, OCC mechanism, platform dispatch behavior, and merge strategy.
+Describe how Harness runs multiple child agents safely: eligibility rules, file-scope isolation, optimistic concurrency control, platform-specific launch behavior, and milestone/worktree merge ordering.
 
-## Concurrency Model
+## Concurrency Modes
 
-Three parallel modes:
+| Mode | Use case | Write model |
+|------|----------|-------------|
+| Read-only sidecar | Review, audit, research, scan | `read-only` |
+| Scoped-write parallel task | Multiple safe tasks inside one milestone | Shared worktree, explicit disjoint `affectedFiles` |
+| Worktree-isolated task | Risky writes or inter-milestone work | Separate worktree |
 
-| Mode | Scope | Mechanism |
-|------|-------|-----------|
-| Read-only sidecar | Analysis/review work attached to current flow | Parent context, no writes |
-| Scoped-write parallel task | Multiple tasks within one milestone | Shared worktree only when `affectedFiles` are disjoint |
-| Worktree-isolated milestone | Milestones or risky write paths | Separate git worktrees per milestone |
+Default behavior is sequential. Parallelism activates only when `projectInfo.concurrency` permits it.
 
-Default is sequential (backward compatible). Enable via `projectInfo.concurrency`:
+## Eligibility Rules
 
-```json
-{
-  "concurrency": {
-    "maxParallelTasks": 3,
-    "maxParallelMilestones": 1,
-    "enableInterMilestone": false
-  }
-}
-```
+A task may join a parallel batch only when all of the following are true:
 
-## Task Dependency Graph
+- `dependsOn` is satisfied
+- milestone status is `PENDING` or `IN_PROGRESS`
+- no active agent already owns the same task
+- no active agent owns overlapping files or scope
+- no pending scope changes are waiting for review
+- UI implementation is not trying to bypass missing design artifacts
 
-Tasks declare dependencies via `dependsOn: string[]`:
+Dependency interpretation:
 
-- Absent: implicit-sequential (existing behavior)
-- Empty array: eligible for immediate parallel dispatch
-- `["T001", "T002"]`: eligible only when both are DONE
-
-## Optimistic Concurrency Control
-
-All parallel state writes use `withStateTransaction()`:
-
-```typescript
-withStateTransaction((state) => {
-  // Read, mutate, write with version check
-  completeTask(taskId, commitHash)
-}, STATE_PATH, 3)
-```
-
-On version conflict, the transaction retries up to 3 times.
-
-### Transaction Scope
-
-All parallel agents use transactions for:
-- `completeTask()` — marks task DONE, refreshes milestone statuses
-- `blockTask()` — marks task BLOCKED, increments retry count
-- `registerActiveAgent()` — adds entry to `activeAgents[]`
-- `deregisterActiveAgent()` — removes entry from `activeAgents[]`
-
-### Error Handling
-
-```typescript
-class ConcurrencyConflictError extends Error {
-  constructor(expected: number, actual: number) {
-    super(`State version conflict: expected ${expected}, got ${actual}`)
-  }
-}
-```
-
-If all 3 retries fail, the agent pauses and surfaces the conflict for manual resolution.
-
-## Platform Spawning
-
-| Platform | Mechanism |
-|----------|-----------|
-| Claude Code | `Agent` tool with `isolation: "worktree"` |
-| Codex CLI | Orchestrator-owned native subagents with parent-managed lifecycle |
-
-Codex child lifecycle:
-1. Spawn child with task packet and role hint
-2. Optional follow-up from parent orchestrator
-3. Wait only when the parent is blocked or batching integration
-4. Integrate result into parent state/context
-5. Close child and deregister active handle
-
-Hooks are not the orchestration layer. `notify` and `execpolicy` are guardrails.
-
-## Agent Lifecycle Management
-
-- **Registration**: `registerActiveAgent(state, agent)` adds to `activeAgents[]`, increments `stateVersion`
-- **Deregistration**: `deregisterActiveAgent(state, agentId)` removes from `activeAgents[]`, increments `stateVersion`
-- **Stale cleanup**: Agents older than 2x their timeout limit are auto-deregistered
-- **No auto-advance**: In parallel mode, `completeTask()` does NOT auto-call `activateNextTask()`; orchestrator re-evaluates eligible tasks on next dispatch cycle
-- **UI routing invariant**: UI tasks must preserve `frontend-designer -> execution-engine -> design-reviewer`; parallel dispatch cannot bypass design artifact creation
-
-## Merge Strategy
-
-1. Milestones merge in ID order (M1 before M2) regardless of completion order
-2. If M2 completes before M1, M2 waits in REVIEW until M1 merges, then M2 rebases
-3. If rebase conflict occurs, milestone stays REVIEW, `task_blocked` event recorded with `blockedReason: "merge-conflict"`, user prompted
-4. Conflict detection triggers BLOCKED status — never auto-resolve merge conflicts
+- `dependsOn` omitted: preserve legacy sequential behavior
+- `dependsOn: []`: eligible immediately
+- `dependsOn: ["T001", "T002"]`: eligible only after both are done
 
 ## File Overlap Guard
 
-Two tasks sharing `affectedFiles` entries cannot run in parallel. The dispatcher checks pairwise overlap before dispatching.
+Two tasks cannot run in parallel when `affectedFiles` overlap.
 
-If overlap is uncertain or ownership scope cannot be stated clearly, keep execution sequential or move one task to a separate worktree.
+Rules:
+
+- If overlap is explicit, reject the batch.
+- If ownership cannot be stated clearly, stay sequential or move one task into its own worktree.
+- UI work is not eligible for shared-worktree writes until the relevant design artifacts already exist.
+
+## Execution State Extensions
+
+Parallel mode extends `execution` with:
+
+- `activeAgents[]`
+- `pendingScopeChanges[]`
+- reservation metadata such as `ownershipScope`, timeout, and runtime handle
+
+An `ActiveAgent` entry is parent-owned and exists for lifecycle control, not as a durable workflow artifact from the child.
+
+## OCC Rules
+
+All state mutations from parallel work must use `withStateTransaction()`.
+
+Use transactions for:
+
+- `completeTask()`
+- `blockTask()`
+- `registerActiveAgent()`
+- `deregisterActiveAgent()`
+
+On version conflict:
+
+- retry up to 3 times
+- if all retries fail, pause and surface the conflict
+
+## Planner vs Launcher Boundary
+
+Planning surface:
+
+```bash
+bun .harness/orchestrator.ts --parallel
+bun .harness/orchestrator.ts --parallel --status
+bun .harness/orchestrator.ts --parallel --packet-json
+```
+
+Execution surface:
+
+```bash
+bun harness:orchestrate --parallel
+```
+
+Rules:
+
+- `dispatchParallel()` computes candidate dispatches, packets, and reservation metadata.
+- The launcher consumes that plan, spawns children, waits or defers according to policy, verifies postconditions, and closes children.
+- Hooks remain guardrails only.
+
+## Platform Launch Behavior
+
+| Platform | Launch model |
+|----------|--------------|
+| Claude Code | `Agent` tool, typically worktree-isolated for write tasks |
+| Codex CLI | Native subagents with parent-owned role hint, wait policy, close policy, and ownership scope |
+
+Codex child rules:
+
+1. Parent computes `SubagentDispatchPolicy` before spawn.
+2. Parent may send follow-up input when required.
+3. Parent waits only when blocked or batching integration.
+4. Success is verified from state/filesystem evidence.
+5. Child is closed after integration and deregistration.
+
+## Worktree Isolation
+
+### Intra-Milestone
+
+Shared-worktree parallelism is allowed only when ownership is explicit and disjoint.
+
+### Inter-Milestone
+
+Parallel milestones require separate git worktrees.
+
+### Merge Order
+
+- Milestones merge in order.
+- A later completed milestone waits in `REVIEW` if an earlier milestone has not merged.
+- Rebase/merge conflicts block closeout until resolved.
+
+## Lifecycle Management
+
+- `registerActiveAgent()` reserves scope and increments `stateVersion`.
+- `deregisterActiveAgent()` removes the reservation after close/integration.
+- Stale agents older than twice their timeout are cleaned up automatically.
+- Spawn failure must roll back the reservation.
+
+In parallel mode, `completeTask()` does not auto-activate the next task. The Orchestrator re-evaluates the graph on the next cycle.
+
+## UI Routing Invariant
+
+Parallel mode does not change the required UI sequence:
+
+```text
+frontend-designer -> execution-engine -> design-reviewer
+```
+
+Design artifacts are prerequisites, not optional side effects.
 
 ## Commands
 
 ```bash
-bun .harness/orchestrator.ts --parallel    # Dispatch eligible tasks
-bun .harness/orchestrator.ts --parallel --status  # Parallel status
-bun .harness/orchestrator.ts --parallel --packet-json  # JSON output
+bun .harness/orchestrator.ts --parallel
+bun .harness/orchestrator.ts --parallel --status
+bun .harness/orchestrator.ts --parallel --packet-json
+bun harness:orchestrate --parallel
 ```

@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync } from "fs"
 import type { ProjectState } from "../types"
-import { deriveStateFromFilesystem, HARNESS_CRITICAL_TOTAL, PROGRESS_DIR, STATE_PATH } from "./shared"
+import { deriveStateFromFilesystem, getHarnessCriticalTotal, PROGRESS_DIR, STATE_PATH } from "./shared"
 import { syncProgressDocuments } from "./progress"
 import { readProjectStateFromDisk, writeProjectStateToDisk } from "./state-io"
+import { resolveToolchainConfig } from "./toolchain-detect"
 import { ensureWorkflowHistory } from "./workflow-history"
 
 type DeepPartial<T> = {
@@ -56,6 +57,9 @@ export function writeState(state: ProjectState): ProjectState {
 }
 
 export function initState(partial: Partial<ProjectState>): ProjectState {
+  const defaultLevel = partial.projectInfo?.harnessLevel?.level ?? "standard"
+  const detectedToolchain = partial.toolchain ?? resolveToolchainConfig(process.cwd())
+
   return refreshDerivedState({
     version: "1.0",
     phase: "DISCOVERY",
@@ -130,7 +134,7 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
     history: {
       events: [],
     },
-    validation: { score: 0, criticalPassed: 0, criticalTotal: HARNESS_CRITICAL_TOTAL },
+    validation: { score: 0, criticalPassed: 0, criticalTotal: getHarnessCriticalTotal(defaultLevel) },
     github: {
       repoCreated: false,
       remoteAdded: false,
@@ -143,25 +147,7 @@ export function initState(partial: Partial<ProjectState>): ProjectState {
       labelsCreated: false,
       issueTemplatesCreated: false,
     },
-    toolchain: {
-      ecosystem: "bun",
-      packageManager: "bun",
-      language: "typescript",
-      commands: {
-        install: { command: "bun install" },
-        typecheck: { command: "bun run typecheck" },
-        lint: { command: "bun run lint" },
-        format: { command: "bun run format" },
-        test: { command: "bun test" },
-        build: { command: "bun run build" },
-      },
-      sourceExtensions: [".ts", ".tsx", ".js", ".jsx"],
-      sourceRoot: "src",
-      manifestFile: "package.json",
-      lockFile: "bun.lockb",
-      forbiddenPatterns: [],
-      ignorePatterns: ["node_modules/", "dist/", ".harness/"],
-    },
+    toolchain: detectedToolchain,
     metrics: { entries: [], lastCollectedAt: undefined },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

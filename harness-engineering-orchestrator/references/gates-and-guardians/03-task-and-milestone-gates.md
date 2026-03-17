@@ -34,9 +34,14 @@ Run `bun harness:validate --task T[ID]` to populate the task checklist before ca
 - Design Review passed
 - Commit message contains `Design Review: ✅`
 
+### Non-UI Task Additional Requirements
+
+- Code Review passed
+- Commit message contains `Code Review: ✅`
+
 ### Spike Gate
 
-- LEARNING.md written
+- user-level LEARNING.md updated
 - ADR generated
 
 ### Milestone Gate

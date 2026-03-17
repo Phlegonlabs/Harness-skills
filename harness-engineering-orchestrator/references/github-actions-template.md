@@ -1,6 +1,8 @@
 # GitHub Actions CI/CD Template
 
-## CI Pipeline (Shared Across All Project Types)
+These workflows are reference shapes, not copy-paste defaults for every project. Always align setup, install, lint, test, build, and deploy steps to the confirmed stack and `state.toolchain.commands`.
+
+## CI Pipeline (Reference Shape)
 
 ```yaml
 # .github/workflows/ci.yml
@@ -17,50 +19,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: <install command from state.toolchain.commands.install.command>
       - name: Type check
-        run: bun run typecheck
+        run: <typecheck command from state.toolchain.commands.typecheck.command>
       - name: Lint
-        run: bun run lint
+        run: <lint command from state.toolchain.commands.lint.command>
       - name: Test with coverage
-        run: bun test --coverage
+        run: <test command from state.toolchain.commands.test.command>
       - name: Build
-        run: bun run build
+        run: <build command from state.toolchain.commands.build.command>
       - name: Check file sizes (max 400 lines)
         run: |
-          find src -name "*.ts" -o -name "*.tsx" | while read file; do
+          find <source-roots> -type f | while read file; do
             lines=$(wc -l < "$file")
             if [ "$lines" -gt 400 ]; then
               echo "❌ $file has $lines lines (max 400)"
               exit 1
             fi
           done
-      - name: Check for console.log
+      - name: Check for forbidden patterns
         run: |
-          if grep -r "console\.log" src/ --include="*.ts" --include="*.tsx" 2>/dev/null; then
-            echo "❌ Use logger instead of console.log"
-            exit 1
-          fi
-      - name: Check for eval()
-        run: |
-          if grep -rP "\beval\s*\(" src/ --include="*.ts" --include="*.tsx" 2>/dev/null; then
-            echo "❌ eval() is forbidden — use safe alternatives"
-            exit 1
-          fi
-      - name: Check for innerHTML assignment
-        run: |
-          if grep -rP "\.innerHTML\s*=" src/ --include="*.ts" --include="*.tsx" 2>/dev/null; then
-            echo "❌ innerHTML assignment is forbidden — use safe DOM APIs or framework bindings"
+          if grep -rE "<forbidden-pattern-regex>" <source-roots> 2>/dev/null; then
+            echo "❌ Forbidden pattern detected"
             exit 1
           fi
       - name: Verify dependency direction
-        run: bun run check:deps
+        run: <dependency-direction check command>
         continue-on-error: true
 ```
+
+For Bun/TypeScript repos, the runtime setup action is commonly `oven-sh/setup-bun@v2`. For Python, Go, Rust, JVM, Swift, or mixed stacks, swap in the platform-appropriate setup action before using the corresponding toolchain commands.
 
 ---
 
@@ -84,8 +75,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
+      - run: <install command from state.toolchain.commands.install.command>
       - name: Deploy to Vercel Preview
         uses: amondnet/vercel-action@v25
         with:
@@ -99,8 +91,9 @@ jobs:
     needs: []
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
+      - run: <install command from state.toolchain.commands.install.command>
       - name: Deploy to Vercel Production
         uses: amondnet/vercel-action@v25
         with:
@@ -125,9 +118,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run build
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
+      - run: <install command from state.toolchain.commands.install.command>
+      - run: <build command from state.toolchain.commands.build.command>
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
@@ -181,7 +175,7 @@ jobs:
             -p "${{ secrets.APPLE_APP_PASSWORD }}"
 ```
 
-### Tag-based Release (Shared Across All Project Types)
+### Tag-based Release (Reference Shape)
 
 ```yaml
 # .github/workflows/release.yml
@@ -204,13 +198,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun test
-      - run: bun run build
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
+      - run: <install command from state.toolchain.commands.install.command>
+      - run: <typecheck command from state.toolchain.commands.typecheck.command>
+      - run: <test command from state.toolchain.commands.test.command>
+      - run: <build command from state.toolchain.commands.build.command>
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -237,20 +230,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - name: Setup project toolchain
+        uses: <setup-action-for-your-runtime>
+      - run: <install command from state.toolchain.commands.install.command>
       - name: Build binaries (cross-platform)
-        run: |
-          bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/cli-linux
-          bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/cli-macos-arm
-          bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/cli-macos-x64
+        run: <cross-platform release build command>
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*
           generate_release_notes: true
-      - name: Publish to NPM
-        run: bun publish
+      - name: Publish package
+        run: <package publish command>
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
@@ -309,14 +300,14 @@ jobs:
 
 ## Checklist
 
-- [ ] `bun run typecheck` — 0 errors
-- [ ] `bun run lint` — 0 warnings
-- [ ] `bun test` — all passing
-- [ ] `bun run build` — successful
+- [ ] Typecheck / compile command passes
+- [ ] Lint command passes
+- [ ] Test command passes
+- [ ] Build / package command passes
 - [ ] All modified files ≤ 400 lines
 - [ ] No `console.log` / `any` / `@ts-ignore`
 - [ ] AGENTS.md / CLAUDE.md updated (if architecture changed)
-- [ ] LEARNING.md updated (if issues resolved or Spike completed)
+- [ ] user-level LEARNING.md updated (if issues resolved or Spike completed)
 
 ## Screenshots (if applicable)
 

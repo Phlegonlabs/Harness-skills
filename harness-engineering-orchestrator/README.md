@@ -1,10 +1,68 @@
 # Harness Engineering and Orchestrator
 
-Harness Engineering and Orchestrator is a runtime-managed delivery workflow for turning an idea or an existing repository into a controlled loop:
+[![Release](https://github.com/Phlegonlabs/Harness-Engineering-skills/actions/workflows/release.yml/badge.svg)](https://github.com/Phlegonlabs/Harness-Engineering-skills/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
+![Harness Level](https://img.shields.io/badge/Harness%20levels-Lite%20%7C%20Standard%20%7C%20Full-1f6feb)
+![Delivery Model](https://img.shields.io/badge/Delivery-milestone--driven-0a7ea4)
+![Workflow](https://img.shields.io/badge/Workflow-PRD--to--Code-111827)
+
+> Repo-backed PRD-to-code orchestration for Claude and Codex.
+>
+> Use this skill when you want software delivery to move through explicit docs, runtime state, milestones, tasks, and validation instead of prompt-only execution.
+
+Harness Engineering and Orchestrator is a repo-backed engineering delivery system for turning an idea or an existing repository into a controlled loop:
 
 `PRD -> Architecture -> Scaffold -> Milestone -> Task -> Validation -> Release`
 
 This README is the high-level map of the current system. The operating contract still lives in [SKILL.md](./SKILL.md) and [agents/orchestrator.md](./agents/orchestrator.md).
+
+In practice, this skill gives Claude and Codex a shared operating model: discovery writes into planning docs, execution writes into runtime state, and validation decides whether the project is actually ready to move forward.
+
+## 1-Minute Demo
+
+```bash
+# Install the skill
+npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill harness-engineering-orchestrator
+
+# In a target repo, scaffold the workflow
+bun <path-to-skill>/scripts/harness-setup.ts
+
+# Start the orchestrator
+bun harness:orchestrate
+```
+
+Within about a minute, you should have a repo with:
+
+- `docs/PRD.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROGRESS.md`
+- `.harness/state.json`
+- the next dispatched step visible from the orchestrator
+
+## At a Glance
+
+- Inputs: a project idea or an existing repository
+- Outputs: `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/PROGRESS.md`, `.harness/state.json`, milestone/task backlog, scaffold, validation state
+- Best for: greenfield bootstraps, existing repo hydration, milestone-driven delivery, staged `V1 -> deploy review -> V2` execution
+- Control model: phase gates, guardian checks, orchestrator-owned dispatch, repo-backed state
+
+## Install in 30 Seconds
+
+```bash
+npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill harness-engineering-orchestrator
+```
+
+Then run:
+
+```bash
+bun <path-to-skill>/scripts/harness-setup.ts
+```
+
+Or, for an existing repo:
+
+```bash
+bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true
+```
 
 ## Why This Project Exists
 
@@ -41,7 +99,7 @@ Level is auto-detected or user-specified. Upgrade mid-project with backfill. See
 Install this skill from the public repository:
 
 ```bash
-npx skills add https://github.com/Phlegonlabs/Harness-skills --skill harness-engineering-orchestrator
+npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill harness-engineering-orchestrator
 ```
 
 Then use it inside a target repository:
@@ -196,11 +254,14 @@ Commands below are run from the managed project checkout unless noted otherwise.
 | `bun <path-to-skill>/scripts/harness-setup.ts` | Start a new greenfield repo | Generate the Harness runtime, docs skeleton, hooks, and base workspace |
 | `bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true` | Hydrate an existing repo | Add the Harness runtime around an existing codebase without replacing product code |
 | `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`) | Any time during delivery | Show status and dispatch the next agent or manual action |
-| `bun .harness/orchestrator.ts --parallel` | During execution with eligible tasks | Dispatch read-only sidecars and scoped/write-isolated tasks with file-overlap guards |
+| `bun harness:orchestrate` | When you want the parent runtime to execute one launch cycle | Spawn, verify, integrate, and close the next child action |
+| `bun .harness/orchestrator.ts --parallel` | During execution with eligible tasks | Preview parallel-eligible sidecars/tasks without spawning them |
+| `bun harness:orchestrate --parallel` | During execution with eligible parallel work | Execute one parent-owned parallel launch cycle |
 | `bun harness:advance` | At a phase boundary | Validate the next phase gate and advance state only if it passes |
 | `bun harness:sync-backlog` | PRD changed inside the current active stage | Append new stage/milestone/task scope without destroying completed history |
 | `bun harness:scope-change --preview` | Before applying a scope change | Preview structured scope changes without modifying state |
 | `bun harness:scope-change --apply` | After confirming a scope change | Apply structured scope changes to PRD and sync backlog |
+| `bun harness:scope-change --reject <id>` | When a pending scope change should be discarded | Reject a queued change without applying it |
 | `bun harness:autoflow` | A milestone is in `REVIEW` | Compact, merge, clean up the milestone, then continue until the next true stop point |
 | `bun harness:stage --status` | During execution or deploy review | Show the current `V1 / V2 / V3` roadmap state |
 | `bun harness:stage --promote V2` | After deploy review for the current version | Activate the next deferred stage and snapshot PRD / Architecture versions |
@@ -242,7 +303,8 @@ Use this as the practical runbook from project start to project finish.
 5. Use the orchestrator as the control tower.
    - Run `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`)
    - Follow the dispatched agent or manual next action instead of guessing the next step
-   - Use `--parallel` to dispatch read-only sidecars first, then scoped/write-isolated tasks when the backlog allows
+   - Use `bun .harness/orchestrator.ts --parallel` to preview eligible parallel work
+   - Use `bun harness:orchestrate --parallel` only when you want the parent runtime to actually launch that batch
 
 6. Execute one task at a time.
    - The current task must match its `prdRef`

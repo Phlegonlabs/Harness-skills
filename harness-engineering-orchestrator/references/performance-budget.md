@@ -38,7 +38,7 @@ Use dynamic imports and code splitting to stay within per-route limits. Tree-sha
 | **Best Practices** | 90 |
 | **SEO** | 90 |
 
-> Lighthouse audits should run against the production build (`bun run build && bun run preview`), not the dev server.
+> Lighthouse audits should run against a production-equivalent build and preview flow, not the dev server.
 
 ---
 
@@ -104,7 +104,7 @@ Use dynamic imports and code splitting to stay within per-route limits. Tree-sha
 ```yaml
 # .github/workflows/ci.yml (relevant step)
 - name: Check bundle size
-  run: bunx size-limit
+  run: <bundle size check command>
 ```
 
 ---

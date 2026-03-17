@@ -134,7 +134,7 @@ git commit -m "feat(T[ID]-ui): [component name] implementation
 
 [Implementation details]
 
-Design Review: pass
+Design Review: ✅
 - Loading/Empty/Error states: pass
 - Responsive: pass mobile/tablet/desktop
 - a11y: pass aria-labels, keyboard nav, contrast
@@ -158,7 +158,7 @@ If there are known design compromises due to time constraints, record them in `d
 ## Done-When
 
 - All checklist items pass (or warn items are recorded)
-- Design review result is included in the commit message
+- Design review result is included in the commit message with `Design Review: ✅`
 - Any design debt is recorded in `docs/design/DESIGN_DEBT.md`
 
 ## Constraints

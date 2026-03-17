@@ -112,7 +112,7 @@ git commit -m "feat(T[ID]): [feature name] implementation
 
 [Implementation details]
 
-Code Review: pass
+Code Review: ✅
 - Security: pass no injection vectors, inputs validated, auth checked
 - Performance: pass no N+1, bounded queries, no leaks
 - Code Quality: pass naming, DRY, error handling, type precision
@@ -138,7 +138,7 @@ If there are known code quality compromises due to time constraints, record them
 ## Done-When
 
 - All checklist items pass (or warn items are recorded)
-- Code review result is included in the commit message
+- Code review result is included in the commit message with `Code Review: ✅`
 - Any technical debt is recorded in `docs/TECH_DEBT.md`
 
 ## Constraints

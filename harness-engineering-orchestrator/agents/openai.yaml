@@ -1,7 +1,7 @@
 interface:
   display_name: "Harness Engineering and Orchestrator"
-  short_description: "Monorepo orchestration and harness workflow"
-  default_prompt: "Use $harness-engineering-orchestrator to turn a project idea or existing repo into a PRD, architecture, milestone backlog, and validated task execution plan."
+  short_description: "Repo-backed PRD-to-code orchestration for Claude and Codex"
+  default_prompt: "Use $harness-engineering-orchestrator to turn a project idea or existing repository into a repo-backed delivery loop with PRD, architecture, milestones, task execution, and validation."
 
 policy:
   allow_implicit_invocation: true

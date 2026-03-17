@@ -31,8 +31,10 @@ Before starting any Task, confirm that state, documents, environment, and prereq
 bun --version
 git status
 git branch
-bun run typecheck
+[configured typecheck command from state.toolchain.commands]
 ```
+
+Use `state.toolchain.commands` as the source of truth for project-specific validation commands. Do not assume `bun run typecheck` outside Bun/TypeScript projects.
 
 ### Parallel Execution Awareness
 

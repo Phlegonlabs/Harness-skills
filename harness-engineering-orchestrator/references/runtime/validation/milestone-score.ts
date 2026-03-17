@@ -10,15 +10,19 @@ import {
   PRD_DIR,
   PRD_PATH,
   STATE_PATH,
+  getHarnessCriticalTotal,
 } from "../shared"
 import { mergeMilestoneChecklist } from "../task-checklist"
 import {
+  buildForbiddenPatternRules,
   countLines,
   filesShareHash,
   findFiles,
   findForbiddenPatternHits,
-  FORBIDDEN_PATTERN_RULES,
-  runBun,
+  resolveToolchainCommand,
+  resolveToolchainSourceExtensions,
+  resolveToolchainSourceRoot,
+  runToolchainCommand,
 } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { saveState } from "./state"
@@ -45,26 +49,32 @@ export async function validateMilestone(
     reporter.failSoft(`${incomplete.length} task(s) are incomplete: ${incomplete.map(task => task.id).join(", ")}`)
   }
 
-  const toolchainChecks: { key: "typecheckPassed" | "lintPassed" | "formatPassed" | "testsPassed" | "buildPassed"; args: string[] }[] = [
-    { key: "typecheckPassed", args: ["run", "typecheck"] },
-    { key: "lintPassed", args: ["run", "lint"] },
-    { key: "formatPassed", args: ["run", "format:check"] },
-    { key: "testsPassed", args: ["test"] },
-    { key: "buildPassed", args: ["run", "build"] },
+  const tc = state.toolchain?.commands
+  const toolchainChecks: {
+    key: "typecheckPassed" | "lintPassed" | "formatPassed" | "testsPassed" | "buildPassed"
+    label: string
+    spec: ReturnType<typeof resolveToolchainCommand>
+  }[] = [
+    { key: "typecheckPassed", label: "typecheck", spec: resolveToolchainCommand(tc, "typecheck") },
+    { key: "lintPassed", label: "lint", spec: resolveToolchainCommand(tc, "lint") },
+    { key: "formatPassed", label: "format", spec: resolveToolchainCommand(tc, "format") },
+    { key: "testsPassed", label: "test", spec: resolveToolchainCommand(tc, "test") },
+    { key: "buildPassed", label: "build", spec: resolveToolchainCommand(tc, "build") },
   ]
 
   const checkResults: Record<string, boolean> = {}
-  for (const { key, args } of toolchainChecks) {
-    const result = await runBun(args)
+  for (const { key, label, spec } of toolchainChecks) {
+    const result = await runToolchainCommand(spec)
     checkResults[key] = result.ok
-    if (result.ok) reporter.pass(`bun ${args.join(" ")}`)
-    else reporter.failSoft(`bun ${args.join(" ")} failed`, result.output)
+    if (result.ok) reporter.pass(`${label} command passed`)
+    else reporter.failSoft(`${label} command failed`, result.output)
   }
 
-  const coverage = await runBun(["test", "--coverage"])
+  const coverageCommand = inferCoverageCommand(state)
+  const coverage = coverageCommand ? await runToolchainCommand({ command: coverageCommand }) : null
   let coverageMet = false
-  if (!coverage.ok) {
-    reporter.warn("Unable to parse test coverage automatically; confirm bun test --coverage manually")
+  if (!coverageCommand || !coverage || !coverage.ok) {
+    reporter.warn("Unable to parse test coverage automatically; confirm with the stack-specific coverage command")
   } else {
     const match = coverage.output.match(/(\d+(?:\.\d+)?)%/)
     const value = parseFloat(match?.[1] ?? "0")
@@ -73,17 +83,20 @@ export async function validateMilestone(
     else reporter.warn(`Coverage ${value}% < 60% (recommended: add more tests)`)
   }
 
-  const overLimit = findFiles("src", [".ts", ".tsx"])
+  const sourceRoot = resolveToolchainSourceRoot(state.toolchain)
+  const sourceExts = resolveToolchainSourceExtensions(state.toolchain)
+  const forbiddenRules = buildForbiddenPatternRules(state.toolchain)
+  const overLimit = findFiles(sourceRoot, sourceExts)
     .map(file => ({ file, lines: countLines(file) }))
     .filter(item => item.lines > 400)
   const fileSizeOk = overLimit.length === 0
-  if (fileSizeOk) reporter.pass("All src files are <= 400 lines [G3]")
+  if (fileSizeOk) reporter.pass(`All ${sourceRoot} files are <= 400 lines [G3]`)
   else reporter.failSoft(`${overLimit.length} file(s) exceed 400 lines [G3]`, overLimit[0].file)
 
-  const forbiddenHits = findForbiddenPatternHits("src", [".ts", ".tsx", ".swift", ".go", ".kt"])
+  const forbiddenHits = findForbiddenPatternHits(sourceRoot, sourceExts, state.toolchain)
   const blockingHits = forbiddenHits.filter(hit => hit.blocking)
   const noBlockingForbiddenPatterns = blockingHits.length === 0
-  for (const rule of FORBIDDEN_PATTERN_RULES) {
+  for (const rule of forbiddenRules) {
     const hits = forbiddenHits.filter(hit => hit.label === rule.label)
     if (hits.length === 0) reporter.pass(`No ${rule.label} [G4]`)
     else if (rule.blocking) {
@@ -142,17 +155,10 @@ export function computeHarnessScore(state: ProjectState): {
   score: number
   critical: number
 } {
-  let packageManagerIsBun = false
-  if (existsSync("package.json")) {
-    try {
-      const pkg = JSON.parse(readFileSync("package.json", "utf-8")) as { packageManager?: string }
-      packageManagerIsBun = pkg.packageManager?.startsWith("bun@") ?? false
-    } catch {
-      packageManagerIsBun = false
-    }
-  }
-
   const gitignore = existsSync(".gitignore") ? readFileSync(".gitignore", "utf-8") : ""
+  const level = state.projectInfo?.harnessLevel?.level ?? "standard"
+  const levelTotal = getHarnessCriticalTotal(level)
+  const ignorePatterns = (state.toolchain?.ignorePatterns ?? []).filter(entry => entry !== ".harness/")
   const items: [boolean, string][] = [
     [existsSync("AGENTS.md"), "AGENTS.md is present"],
     [existsSync("CLAUDE.md"), "CLAUDE.md is present"],
@@ -169,15 +175,15 @@ export function computeHarnessScore(state: ProjectState): {
     [state.scaffold?.linterConfigured ?? existsSync("biome.json"), "Linter/formatter configured"],
     [state.scaffold?.manifestExists ?? existsSync("package.json"), "Project manifest present and valid"],
     [gitignore.includes(".env"), ".gitignore includes .env [G6]"],
-    [gitignore.includes("node_modules") || gitignore.includes("__pycache__") || gitignore.includes("/target/") || gitignore.includes("/vendor/"), ".gitignore includes ecosystem-specific entries [G6]"],
+    [
+      ignorePatterns.length === 0 || ignorePatterns.some(entry => gitignore.includes(entry.replace(/^\//, ""))),
+      ".gitignore includes ecosystem-specific entries [G6]",
+    ],
     [state.docs.adrs.length > 0, `ADR records (${state.docs.adrs.length})`],
     [state.techStack.confirmed, "Tech Stack is confirmed"],
     [state.execution.allMilestonesComplete, "All milestones are complete"],
   ]
 
-  // Use level-scoped critical counts: lite=8, standard=15, full=19
-  const level = state.projectInfo?.harnessLevel?.level ?? "standard"
-  const levelTotal = getHarnessCriticalTotal(level)
   const levelItems = items.slice(0, levelTotal)
 
   if (items.length !== HARNESS_CRITICAL_TOTAL) {
@@ -195,6 +201,7 @@ export function fullValidation(state: ProjectState, reporter: ValidationReporter
   reporter.section("Harness Full Validation (GATE-FINAL)")
 
   const { items, score, critical } = computeHarnessScore(state)
+  const levelTotal = getHarnessCriticalTotal(state.projectInfo?.harnessLevel?.level ?? "standard")
   for (const [ok, label] of items) {
     if (ok) reporter.pass(label)
     else reporter.failSoft(label)
@@ -205,13 +212,13 @@ export function fullValidation(state: ProjectState, reporter: ValidationReporter
 
   state.validation.score = score
   state.validation.criticalPassed = critical
-  state.validation.criticalTotal = HARNESS_CRITICAL_TOTAL
+  state.validation.criticalTotal = levelTotal
   state.validation.lastRun = new Date().toISOString()
   saveState(state)
 
   console.log(`\n${"─".repeat(55)}`)
-  console.log(`Harness Score: ${score}/100  (${critical}/${HARNESS_CRITICAL_TOTAL} critical)`)
-  const hasCriticalFailures = critical < HARNESS_CRITICAL_TOTAL
+  console.log(`Harness Score: ${score}/100  (${critical}/${levelTotal} critical)`)
+  const hasCriticalFailures = critical < levelTotal
   console.log(
     score >= 90 && !hasCriticalFailures
       ? "🟢 Excellent — meets the Harness Engineering bar"
@@ -226,11 +233,13 @@ export function fullValidation(state: ProjectState, reporter: ValidationReporter
   return state
 }
 
-/** Return the critical total based on harness level. */
-export function getHarnessCriticalTotal(level: "lite" | "standard" | "full"): number {
-  switch (level) {
-    case "lite": return 8
-    case "standard": return 15
-    case "full": return 19
-  }
+function inferCoverageCommand(state: ProjectState): string | undefined {
+  const testCommand = state.toolchain?.commands.test.command.trim()
+  if (!testCommand) return undefined
+
+  if (/\bbun\s+test\b/.test(testCommand)) return `${testCommand} --coverage`
+  if (/\bpytest\b/.test(testCommand)) return `${testCommand} --cov`
+  if (/\bgo\s+test\b/.test(testCommand)) return `${testCommand} -cover`
+
+  return undefined
 }

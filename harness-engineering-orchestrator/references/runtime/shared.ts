@@ -13,6 +13,17 @@ export const DEFAULT_DEPENDENCY_LAYERS = ["types", "config", "lib", "services", 
 export const UI_PROJECT_TYPES = ["web-app", "ios-app", "android-app", "mobile-cross-platform", "desktop"]
 export const HARNESS_CRITICAL_TOTAL = 19
 
+export function getHarnessCriticalTotal(level: "lite" | "standard" | "full"): number {
+  switch (level) {
+    case "lite":
+      return 8
+    case "standard":
+      return 15
+    case "full":
+      return 19
+  }
+}
+
 export function isUiProject(types: ProjectType[]): boolean {
   return types.some(type => UI_PROJECT_TYPES.includes(type))
 }
@@ -214,7 +225,7 @@ export function deriveStateFromFilesystem(
       milestone.status === "COMPLETE" || milestone.status === "MERGED",
     )
 
-  next.validation.criticalTotal = HARNESS_CRITICAL_TOTAL
+  next.validation.criticalTotal = getHarnessCriticalTotal(next.projectInfo?.harnessLevel?.level ?? "standard")
   if (options.updateValidationTimestamp) {
     next.validation.lastRun = now
   }

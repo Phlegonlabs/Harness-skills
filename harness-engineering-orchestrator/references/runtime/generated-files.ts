@@ -220,9 +220,11 @@ ${renderPublicStatusSection(ctx.publicStatus)}
 
 \`\`\`bash
 bun install
+bun harness:orchestrate
 bun harness:advance
 bun harness:stage --status
 bun harness:sync-backlog
+bun harness:scope-change --preview
 bun harness:add-surface --type agent
 bun harness:sync-docs
 bun harness:audit
@@ -252,9 +254,11 @@ ${renderPublicStatusSection(ctx.publicStatus)}
 \`\`\`bash
 bun install
 bun .harness/state.ts --show
+bun harness:orchestrate
 bun harness:advance
 bun harness:stage --status
 bun harness:sync-backlog
+bun harness:scope-change --preview
 bun harness:env
 bun harness:validate --phase EXECUTING
 bun harness:audit
@@ -322,6 +326,7 @@ During scaffold setup, do not pre-install project frameworks such as Next.js or 
 
 \`\`\`bash
 bun install
+bun harness:orchestrate
 bun harness:advance
 bun harness:env
 bun harness:audit

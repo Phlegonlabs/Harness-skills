@@ -2,18 +2,18 @@
 
 ## Description
 
-`LEARNING.md` is the project's **living knowledge base document**, recording things learned during execution.
+`LEARNING.md` is the project-specific **user-level knowledge base**, recording things learned during execution.
 The Execution Engine automatically updates it at the following times:
 - Each time a Debug Loop resolves an issue
 - Each time a Spike Task is completed
 - Each time a technical choice is made (including ADR)
 - Each time a review after Milestone completion discovers issues
 
-**Install location**: `~/.codex/LEARNING.md` (Codex CLI global) and `~/.claude/LEARNING.md` (Claude Code global). These are machine-level global folders, not in the repo.
+**Install location**: `~/.codex/LEARNING.md` (Codex CLI global) and `~/.claude/LEARNING.md` (Claude Code global). These are machine-level global files, not repository files.
 
-The tool reads them automatically on startup; after each update, sync: `cp ~/.codex/LEARNING.md ~/.claude/LEARNING.md`
+The tool reads them automatically on startup. Keep the two files synchronized after updates using a cross-platform file copy method appropriate to the current shell/runtime.
 
-**Purpose**: Before starting a new Task, the Agent reads LEARNING.md first to avoid known pitfalls.
+**Purpose**: Before starting a new Task, the Agent reads the relevant user-level LEARNING file first to avoid known pitfalls.
 
 ---
 
@@ -98,12 +98,11 @@ The tool reads them automatically on startup; after each update, sync: `cp ~/.co
 
 ## Initialization Command
 
-Create an empty LEARNING.md during Phase 4 Scaffold:
+Create the user-level LEARNING file during scaffold setup if it does not already exist. Use a cross-platform file creation command for the current environment.
 
-```bash
-mkdir -p ~/.codex ~/.claude
+Initial contents:
 
-cat > ~/.codex/LEARNING.md << 'EOF'
+```markdown
 # LEARNING.md — [PROJECT_NAME]
 
 > Knowledge base of lessons learned during execution. Must read before starting a new Task.
@@ -120,17 +119,11 @@ cat > ~/.codex/LEARNING.md << 'EOF'
 
 ## Deprecated Approaches
 (Auto-populated from approaches excluded during Debug Loops)
-EOF
-
-cp ~/.codex/LEARNING.md ~/.claude/LEARNING.md
 ```
 
 ## Update Rules
 
 After each update to LEARNING.md:
-1. Sync to both locations: `cp ~/.codex/LEARNING.md ~/.claude/LEARNING.md`
-2. Atomic commit (docs type):
-   ```bash
-   # LEARNING.md is global, does not go into repo git commit
-   # But updates can be recorded in PROGRESS.md or the "learned constraints" section of AGENTS.md
-   ```
+1. Sync the content to both user-level locations.
+2. Do not commit it to the repo.
+3. If the learning affects repo workflow, reflect the relevant consequence in `docs/PROGRESS.md`, ADRs, or `AGENTS.md` / `CLAUDE.md`.

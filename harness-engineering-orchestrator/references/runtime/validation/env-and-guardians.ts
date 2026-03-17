@@ -1,11 +1,14 @@
+import type { ProjectState } from "../../types"
 import { existsSync, readFileSync } from "fs"
 import {
+  buildForbiddenPatternRules,
   commandExists,
   countLines,
   filesShareHash,
   findFiles,
   findForbiddenPatternHits,
-  FORBIDDEN_PATTERN_RULES,
+  resolveToolchainSourceExtensions,
+  resolveToolchainSourceRoot,
   getVersion,
   runBun,
 } from "./helpers"
@@ -59,16 +62,21 @@ export async function validateEnv(reporter: ValidationReporter): Promise<void> {
   reporter.pass(process.platform === "win32" ? "Windows platform detected" : `${process.platform} platform detected`)
 }
 
-export async function validateGuardians(reporter: ValidationReporter): Promise<void> {
+export async function validateGuardians(
+  reporter: ValidationReporter,
+  state?: ProjectState,
+): Promise<void> {
   reporter.section("Guardian Baseline Scan")
 
-  const srcExts = [".ts", ".tsx", ".swift", ".go", ".kt"]
-  const overLimit = findFiles("src", srcExts)
+  const sourceRoot = resolveToolchainSourceRoot(state?.toolchain)
+  const sourceExts = resolveToolchainSourceExtensions(state?.toolchain)
+  const rules = buildForbiddenPatternRules(state?.toolchain)
+  const overLimit = findFiles(sourceRoot, sourceExts)
     .map(file => ({ file, lines: countLines(file) }))
     .filter(item => item.lines > 400)
 
   if (overLimit.length === 0) {
-    reporter.pass("G3 ✓ all src files are <= 400 lines")
+    reporter.pass(`G3 ✓ all ${sourceRoot} files are <= 400 lines`)
   } else {
     reporter.failSoft(
       `G3 ✗ ${overLimit.length} file(s) exceed 400 lines`,
@@ -76,9 +84,9 @@ export async function validateGuardians(reporter: ValidationReporter): Promise<v
     )
   }
 
-  const forbiddenHits = findForbiddenPatternHits("src", [".ts", ".tsx", ".swift", ".go", ".kt"])
+  const forbiddenHits = findForbiddenPatternHits(sourceRoot, sourceExts, state?.toolchain)
 
-  for (const rule of FORBIDDEN_PATTERN_RULES) {
+  for (const rule of rules) {
     const hits = forbiddenHits.filter(hit => hit.label === rule.label)
     if (hits.length === 0) {
       reporter.pass(`G4 ✓ no ${rule.label}`)
@@ -92,7 +100,15 @@ export async function validateGuardians(reporter: ValidationReporter): Promise<v
 
   if (existsSync(".gitignore")) {
     const gitignore = readFileSync(".gitignore", "utf-8")
-    for (const entry of [".env", ".env.local", ".env.production", "node_modules"]) {
+    const requiredEntries = [
+      ".env",
+      ".env.local",
+      ".env.production",
+      ...(state?.toolchain?.ignorePatterns ?? [])
+        .filter(entry => entry !== ".harness/")
+        .map(entry => entry.replace(/^\//, "")),
+    ]
+    for (const entry of Array.from(new Set(requiredEntries))) {
       if (gitignore.includes(entry)) reporter.pass(`G6 ✓ .gitignore includes ${entry}`)
       else reporter.failSoft(`G6 ✗ .gitignore is missing ${entry}`)
     }

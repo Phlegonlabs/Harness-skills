@@ -2,10 +2,17 @@
 
 ```bash
 bun harness:advance
+bun harness:orchestrate
+bun harness:orchestrate --parallel
+bun harness:autoflow
 bun harness:stage --status
 bun harness:stage --promote V2
 bun .harness/init.ts --from-prd
 bun harness:sync-backlog
+bun harness:scope-change --preview
+bun harness:scope-change --apply
+bun harness:scope-change --reject <id>
+bun .harness/orchestrator.ts --parallel
 bun .harness/state.ts --show
 bun harness:env
 bun harness:validate --phase EXECUTING

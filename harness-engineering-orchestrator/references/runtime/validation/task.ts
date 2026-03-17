@@ -5,12 +5,15 @@ import { getLearningPaths } from "../learning"
 import { documentExists, PROGRESS_DIR, PROGRESS_PATH } from "../shared"
 import { mergeSpikeChecklist, mergeTaskChecklist } from "../task-checklist"
 import {
+  buildForbiddenPatternRules,
   countLines,
   findFiles,
   findForbiddenPatternHits,
-  runBun,
   runGit,
   runToolchainCommand,
+  resolveToolchainCommand,
+  resolveToolchainSourceExtensions,
+  resolveToolchainSourceRoot,
 } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { saveState } from "./state"
@@ -63,16 +66,19 @@ export async function validateTask(
   }
 
   const tc = state.toolchain?.commands
-  const typecheck = await runToolchainCommand(tc?.typecheck ?? { command: "bun run typecheck" })
-  const lint = await runToolchainCommand(tc?.lint ?? { command: "bun run lint" })
-  const format = await runToolchainCommand(tc?.format ?? { command: "bun run format:check" })
-  const tests = await runToolchainCommand(tc?.test ?? { command: "bun test" })
-  const build = await runToolchainCommand(tc?.build ?? { command: "bun run build" })
+  const typecheck = await runToolchainCommand(resolveToolchainCommand(tc, "typecheck"))
+  const lint = await runToolchainCommand(resolveToolchainCommand(tc, "lint"))
+  const format = await runToolchainCommand(resolveToolchainCommand(tc, "format"))
+  const tests = await runToolchainCommand(resolveToolchainCommand(tc, "test"))
+  const build = await runToolchainCommand(resolveToolchainCommand(tc, "build"))
+  const sourceRoot = resolveToolchainSourceRoot(state.toolchain)
+  const sourceExts = resolveToolchainSourceExtensions(state.toolchain)
+  const forbiddenRules = buildForbiddenPatternRules(state.toolchain)
 
-  const overLimit = findFiles("src", [".ts", ".tsx"])
+  const overLimit = findFiles(sourceRoot, sourceExts)
     .map(file => ({ file, lines: countLines(file) }))
     .filter(item => item.lines > 400)
-  const forbiddenHits = findForbiddenPatternHits("src", [".ts", ".tsx", ".swift", ".go", ".kt"])
+  const forbiddenHits = findForbiddenPatternHits(sourceRoot, sourceExts, state.toolchain)
   const blockingForbiddenHits = forbiddenHits.filter(hit => hit.blocking)
   const warningForbiddenHits = forbiddenHits.filter(hit => !hit.blocking)
   const currentChecklist = task.checklist as TaskChecklist | undefined
@@ -108,13 +114,13 @@ export async function validateTask(
     [
       "fileSizeOk",
       "modified files are <= 400 lines [G3]",
-      summarizeFirstFailure(overLimit, item => `${item.file} (${item.lines} lines)`) ?? "Check src/ file length",
+      summarizeFirstFailure(overLimit, item => `${item.file} (${item.lines} lines)`) ?? `Check ${sourceRoot}/ file length`,
     ],
     [
       "noForbiddenPatterns",
       "no forbidden patterns [G4]",
       summarizeFirstFailure(blockingForbiddenHits, hit => `${hit.file}:${hit.line} ${hit.content}`) ??
-        "console.log / : any / @ts-ignore / sk- / Bearer / ghp_",
+        forbiddenRules.map(rule => rule.label).join(" / "),
     ],
     [
       "atomicCommitDone",

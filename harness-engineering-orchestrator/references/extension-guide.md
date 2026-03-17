@@ -1,104 +1,90 @@
 # Extension Guide
 
-How to extend the Harness Engineering Orchestrator with new agents, guardians, phases, ecosystems, templates, and platforms.
+## Purpose
 
-## Adding a New Agent
+Describe the minimum changes required to extend Harness with new agents, guardians, phases, templates, ecosystems, or platforms while staying aligned with the PRD and runtime model.
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Write agent specification | `agents/{agent-id}.md` |
-| 2 | Add agent ID to type union | `references/harness-types.ts` → `AgentId` |
-| 3 | Register agent entry | `references/runtime/orchestrator/agent-registry.ts` |
-| 4 | Define material policy | `references/runtime/orchestrator/material-policy.ts` |
-| 5 | Add dispatch logic | `references/runtime/orchestrator/dispatcher.ts` |
-| 6 | Add after-completion guidance | `references/runtime/orchestrator/context-builder.ts` |
-| 7 | Update AGENTS.md template | `templates/AGENTS.md.template` |
-| 8 | Write tests | `references/runtime/orchestrator/*.test.ts` |
-| 9 | Update PRD | Module 05 (agent spec), Module 13 (interaction model) |
+## Add a New Agent
 
-## Adding a New Guardian
+1. Write the agent spec in `agents/{agent-id}.md`.
+2. Add the id to `references/harness-types.ts`.
+3. Register it in `references/runtime/orchestrator/agent-registry.ts`.
+4. Define material policy and platform constraints in `references/runtime/orchestrator/material-policy.ts`.
+5. Add dispatch logic in `references/runtime/orchestrator/dispatcher.ts`.
+6. Add after-completion guidance in `references/runtime/orchestrator/context-builder.ts`.
+7. Add any child-role/default `SubagentDispatchPolicy` mapping when parallel/runtime-native dispatch matters.
+8. Update `templates/AGENTS.md.template`.
+9. Add tests under `references/runtime/orchestrator/`.
+10. Update the PRD-facing docs that describe the agent contract and interaction model.
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Define the guardian rule | `references/gates-and-guardians/01-guardians.md` |
-| 2 | Determine enforcement surfaces | Git hooks, Claude hooks, Codex hooks, instruction-only |
-| 3 | Add hook logic (if applicable) | `references/runtime/hooks/check-guardian.ts` |
-| 4 | Add forbidden patterns (if applicable) | `references/runtime/validation/helpers.ts` |
-| 5 | Add to Claude Code settings | `.claude/settings.local.json` (via setup) |
-| 6 | Add to Codex execpolicy (if applicable) | `.codex/rules/guardian.rules` |
-| 7 | Add to validation gate | `references/runtime/validation/task.ts` or `milestone-score.ts` |
-| 8 | Update guardian-to-hook mapping | `references/hooks-guide.md` |
-| 9 | Update level activation matrix | `references/gates-and-guardians/01-guardians.md` |
-| 10 | Update PRD | Module 11 (QG-01), Module 08 (HK-03) |
+Agent spec structure:
 
-## Adding a New Phase
+- `Role`
+- `Trigger`
+- `Inputs`
+- `Tasks`
+- `Outputs`
+- `Done-When`
+- `Constraints`
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Add phase to type union | `references/harness-types.ts` → `Phase` |
-| 2 | Add phase gate conditions | `references/harness-types.ts` → `PHASE_GATES` |
-| 3 | Add structural checks | `references/runtime/phase-structural.ts` |
-| 4 | Add phase handler in dispatcher | `references/runtime/orchestrator/dispatcher.ts` |
-| 5 | Add phase readiness checks | `references/runtime/orchestrator/phase-readiness.ts` |
-| 6 | Add autoflow behavior | `references/runtime/orchestrator/autoflow.ts` |
-| 7 | Update phase transition table | `references/harness-advance.ts` |
-| 8 | Add validation | `references/runtime/validation/phase.ts` |
-| 9 | Update SKILL.md phase list | SKILL.md |
-| 10 | Update PRD | Module 03, Module 04 |
+## Add a New Guardian
 
-## Adding a New Toolchain Ecosystem
+1. Define the rule in `references/gates-and-guardians/01-guardians.md`.
+2. Decide the enforcement surfaces: instruction-only, git hook, Claude hook, Codex notify, Codex execpolicy, validation gate, or CI.
+3. Add runtime enforcement in `references/runtime/hooks/check-guardian.ts` when applicable.
+4. Update `references/runtime/validation/helpers.ts` for pattern-based checks.
+5. Update task or milestone validation if the rule affects gate completion.
+6. Update `references/hooks-guide.md`.
+7. Update the level-activation matrix.
+8. Add tests.
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Add ecosystem to type union | `references/harness-types.ts` → `SupportedEcosystem` |
-| 2 | Add detection logic | `references/runtime/toolchain-detect.ts` |
-| 3 | Add preset definition | `references/runtime/toolchain-registry.ts` |
-| 4 | Define source extensions | `sourceExtensions`, `sourceRoot`, `manifestFile`, `lockFile` |
-| 5 | Define forbidden patterns (if needed) | `references/runtime/validation/helpers.ts` |
-| 6 | Add CI template (if needed) | `templates/.github/workflows/ci-{ecosystem}.yml.template` |
-| 7 | Update validation for new extensions | `references/runtime/validation/helpers.ts` |
-| 8 | Update PRD | Module 06, Module 09 |
+## Add a New Phase
 
-## Adding a New Template
+1. Add the phase to the `Phase` union and phase-gate mapping.
+2. Extend structural checks in `references/runtime/phase-structural.ts`.
+3. Add readiness logic in `references/runtime/orchestrator/phase-readiness.ts`.
+4. Add dispatch behavior in `references/runtime/orchestrator/dispatcher.ts`.
+5. Update autoflow behavior in `references/runtime/orchestrator/autoflow.ts`.
+6. Update phase validation in `references/runtime/validation/phase.ts`.
+7. Update `SKILL.md` and the relevant references.
+8. Add tests for planner and validation behavior.
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Create template file | `templates/{path}/{name}.template` |
-| 2 | Add to scaffold generation | `scripts/setup/core.ts` |
-| 3 | Add to file manifest (if local-only) | `scripts/harness-local/manifest.json` |
-| 4 | Add to structural checks (if gate-required) | `references/runtime/phase-structural.ts` |
-| 5 | Update PRD | Module 07, Module 10 |
+## Add a New Ecosystem
 
-## Adding a New Platform
+1. Extend `SupportedEcosystem` in `references/harness-types.ts`.
+2. Add detection in `references/runtime/toolchain-detect.ts`.
+3. Add presets in `references/runtime/toolchain-registry.ts`.
+4. Extend validation helpers for file discovery and blocked patterns if needed.
+5. Add CI templates in `templates/.github/workflows/`.
+6. Add scaffold/template wiring in `scripts/setup/core.ts`.
+7. Update docs and tests.
 
-| Step | Action | Files Affected |
-|------|--------|---------------|
-| 1 | Add platform to type union | `references/harness-types.ts` → `AgentPlatform` |
-| 2 | Add detection logic | `references/runtime/orchestrator/context-builder.ts` |
-| 3 | Add platform-specific constraints | `references/runtime/orchestrator/material-policy.ts` |
-| 4 | Add hook configuration (if applicable) | New config file for the platform |
-| 5 | Add compact output path (if applicable) | Context compactor platform-specific output |
-| 6 | Update PRD | Module 08, Module 10 |
+## Add a New Template
 
-### Platform Detection Protocol
+1. Create `templates/{path}/{name}.template`.
+2. Mirror the target project path under `templates/`.
+3. Add generation wiring in `scripts/setup/core.ts`.
+4. Add structural validation when the file is gate-critical.
+5. Update template/reference docs and tests.
 
-Platform detection must be capability/config driven. Do not use transient session-file heuristics.
+Use overwrite semantics only for files that must stay current, such as hook shims or managed local runtime files.
 
-Preferred signals:
-- explicit environment variables
-- runtime capability probes
-- stable workspace config files (for example `.codex/config.toml`)
+## Add a New Platform
 
-Avoid:
-- transient session artifacts or per-session scratch files
+1. Extend `AgentPlatform` in `references/harness-types.ts`.
+2. Add platform detection in `references/runtime/orchestrator/context-builder.ts`.
+3. Add platform-specific inline constraints and lifecycle hints in `material-policy.ts`.
+4. Define how spawn, follow-up, wait, and close map for child agents.
+5. Add platform hook/config integration if available.
+6. Update `templates/AGENTS.md.template` and hook docs.
+7. Add tests for detection and dispatch behavior.
 
-### Subagent Lifecycle Mapping
+Platform detection must be capability/config driven, not based on transient session files.
 
-If the platform supports child agents/subagents, document how these are mapped:
-1. Spawn
-2. Optional parent follow-up
-3. Wait policy
-4. Result integration
-5. Close policy
+## Minimum Validation for Any Extension
 
-Guardrails (`notify`, `execpolicy`, git hooks) enforce constraints, but they do not replace lifecycle orchestration.
+- runtime tests added or updated
+- docs updated where the extension changes workflow behavior
+- command surface documented if new commands/flags are added
+- generated project templates updated when the extension affects scaffold output
+- PRD-facing reference docs kept in sync with the actual runtime contract

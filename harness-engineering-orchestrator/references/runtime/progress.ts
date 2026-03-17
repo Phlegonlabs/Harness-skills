@@ -225,7 +225,7 @@ function generateProgressIndexMarkdown(state: ProjectState): string {
 
   return `# PROGRESS.md — ${state.projectInfo.displayName || state.projectInfo.name || "Project"}
 
-> **For the next session's Agent**: Read this index first, then read \`docs/progress/\`, AGENTS.md and LEARNING.md, then pick up from the Current Task.
+> **For the next session's Agent**: Read this index first, then read \`docs/progress/\`, \`AGENTS.md\`, and the relevant user-level LEARNING file (\`~/.codex/LEARNING.md\` or \`~/.claude/LEARNING.md\`), then pick up from the Current Task.
 
 ---
 

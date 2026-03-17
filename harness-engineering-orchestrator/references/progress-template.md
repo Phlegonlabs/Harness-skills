@@ -13,7 +13,7 @@ so that reopening a Claude / Codex main thread at any time can resume from the l
 ```markdown
 # PROGRESS.md — [PROJECT_NAME]
 
-> **⚠️ For the next session's Agent**: Please read `docs/PROGRESS.md` and `docs/progress/` first, then read AGENTS.md and LEARNING.md, then continue with the Current Task indicated below.
+> **⚠️ For the next session's Agent**: Please read `docs/PROGRESS.md` and `docs/progress/` first, then read `AGENTS.md` and the relevant user-level LEARNING file (`~/.codex/LEARNING.md` or `~/.claude/LEARNING.md`), then continue with the Current Task indicated below.
 
 ---
 
@@ -90,7 +90,7 @@ Do not run full resume. Use only the orchestrator-provided task packet, scoped r
 
 ## 📝 Recent Decision Records
 
-[Last 3 important decisions or resolved issues; full records in LEARNING.md]
+[Last 3 important decisions or resolved issues; full records in the user-level LEARNING.md]
 
 - [DATE] T[ID]: [Decision summary]
 - [DATE] T[ID]: [Decision summary]

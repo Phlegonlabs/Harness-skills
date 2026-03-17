@@ -18,13 +18,13 @@ Dispatched by the Orchestrator when `phase === "DISCOVERY"` and `harnessLevel.le
 
 ### Q-1: Level Selection
 
-Before starting the questionnaire, ask the user which Harness level they want:
+Before starting the questionnaire, auto-detect the likely Harness level from scope, team size, and delivery risk. Ask the user to confirm or override when the choice is ambiguous or materially affects process overhead:
 
 - **Lite** — minimal overhead, fast bootstrap, 2-turn discovery
 - **Standard** — balanced, grouped questions, full scaffold
 - **Full** — comprehensive, sequential questions, full scaffold + GitBook
 
-If the user does not specify, auto-detect based on signals:
+Typical signals:
 - Solo developer + small concept description -> suggest Lite
 - Team project or complex domain -> suggest Standard
 - Enterprise, regulated, or multi-surface -> suggest Full
@@ -106,5 +106,5 @@ This agent sets the following fields in `.harness/state.json`:
 
 - At Standard level, batch questions — do not ask all 10 individually but do not dump them all at once either
 - At Full level, ask one question at a time — do not batch
-- Never skip Q-1 (level selection)
+- Never skip level selection or confirmation when the ceremony level is uncertain
 - Persist every answer immediately; do not wait until the end

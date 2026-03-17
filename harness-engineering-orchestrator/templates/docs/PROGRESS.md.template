@@ -1,6 +1,6 @@
 # PROGRESS.md — [PROJECT_DISPLAY_NAME]
 
-> **For the next session's agent**: Read this index first, then read `docs/progress/`, `AGENTS.md`, and LEARNING.md, then pick up from the Current Task.
+> **For the next session's agent**: Read this index first, then read `docs/progress/`, `AGENTS.md`, and the relevant user-level LEARNING file (`~/.codex/LEARNING.md` or `~/.claude/LEARNING.md`), then pick up from the Current Task.
 
 ---
 

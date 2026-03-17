@@ -2,12 +2,12 @@
 
 ## DEPLOY_REVIEW Checklist
 
-When a product stage enters `DEPLOY_REVIEW`, verify all 7 items before promoting:
+When a product stage enters `DEPLOY_REVIEW`, verify all 7 items before promoting the next deferred stage or closing out the final release:
 
 | # | Check | Verification Method |
 |---|-------|-------------------|
-| 1 | Build verification | `bun run build` succeeds on main branch with all stage milestones merged |
-| 2 | Full test suite | `bun run test` passes on main branch |
+| 1 | Build verification | Run the configured build command from the active toolchain on the main branch with all stage milestones merged |
+| 2 | Full test suite | Run the configured test command from the active toolchain on the main branch |
 | 3 | Environment configuration | `.env.example` is current; all required variables documented |
 | 4 | Migration readiness | Database migrations (if any) are reversible and tested |
 | 5 | Dependency audit | No known critical vulnerabilities in dependencies |
@@ -40,7 +40,7 @@ When a product stage enters `DEPLOY_REVIEW`, verify all 7 items before promoting
 | 1 | Smoke test confirmation — user confirms deployed app is accessible |
 | 2 | Health check — API project: health endpoint returns 200 |
 | 3 | Rollback readiness — confirm rollback procedure exists |
-| 4 | Stage completion — `bun harness:stage --promote V[N+1]` |
+| 4 | Stage completion — promote with `bun harness:stage --promote V[N+1]` if another stage exists; otherwise proceed to final closeout |
 
 ## Stage Rollback Procedure
 

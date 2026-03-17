@@ -4,9 +4,14 @@ import { initState } from "../../references/harness-init"
 import { ensureEnvLocalSkeleton } from "../../references/runtime/env-local"
 import { getManagedDocSpecs, getManagedSkillSpecs, syncManagedFiles } from "../../references/runtime/generated-files"
 import { syncLocalBootstrapManifest } from "../../references/runtime/local-bootstrap"
-import { HARNESS_CRITICAL_TOTAL } from "../../references/runtime/shared"
+import { getHarnessCriticalTotal } from "../../references/runtime/shared"
+import {
+  buildToolchainConfig,
+  detectEcosystem,
+  isConfiguredToolchainCommand,
+} from "../../references/runtime/toolchain-detect"
 import { CODEX_CONFIG_TOML, CODEX_GUARDIAN_RULES } from "../../references/runtime/hooks/codex-config"
-import type { GitHubState } from "../../references/harness-types"
+import type { GitHubState, ToolchainConfig } from "../../references/harness-types"
 import {
   countPrdMilestones,
   existingState,
@@ -23,6 +28,29 @@ type SetupParams = {
   context: Context
   skillRoot: string
   logger: SetupLogger
+}
+
+function toolchainIsConfigured(toolchain?: ToolchainConfig): boolean {
+  if (!toolchain) return false
+  return ["install", "typecheck", "lint", "format", "test", "build"].every(key =>
+    isConfiguredToolchainCommand(toolchain.commands[key as keyof ToolchainConfig["commands"]]),
+  )
+}
+
+function resolveInitialToolchain(
+  context: Context,
+  currentToolchain?: ToolchainConfig,
+): ToolchainConfig {
+  if (toolchainIsConfigured(currentToolchain)) {
+    return currentToolchain
+  }
+
+  const detected = detectEcosystem(process.cwd())
+  if (detected) {
+    return buildToolchainConfig(detected, process.cwd())
+  }
+
+  return buildToolchainConfig(context.isGreenfield ? "bun" : "custom", process.cwd())
 }
 
 function syncClaudeMirrorFromAgents(logger: SetupLogger): void {
@@ -743,6 +771,8 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
   const milestoneCount = Math.max(1, countPrdMilestones(prd))
   const current = existingState()
   const defaults = initState({})
+  const harnessLevel = current?.projectInfo.harnessLevel ?? defaults.projectInfo.harnessLevel
+  const toolchain = resolveInitialToolchain(context, current?.toolchain)
 
   const next = initState({
     ...(current ?? {}),
@@ -760,6 +790,7 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
       isGreenfield: current?.projectInfo.isGreenfield ?? context.isGreenfield,
       designStyle: current?.projectInfo.designStyle ?? context.designStyle,
       designReference: current?.projectInfo.designReference ?? context.designReference,
+      harnessLevel,
     },
     docs: {
       ...(current?.docs ?? defaults.docs),
@@ -819,7 +850,7 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
     roadmap: current?.roadmap ?? defaults.roadmap,
     validation: {
       ...(current?.validation ?? defaults.validation),
-      criticalTotal: HARNESS_CRITICAL_TOTAL,
+      criticalTotal: getHarnessCriticalTotal(harnessLevel.level),
     },
     github: {
       ...(current?.github ?? defaults.github),
@@ -828,6 +859,7 @@ function writeInitialState(context: Context, logger: SetupLogger, githubResult?:
       visibility: context.visibility,
       ...githubResult,
     },
+    toolchain,
   })
 
   writeFileAlways(".harness/state.json", `${JSON.stringify(next, null, 2)}\n`, logger)

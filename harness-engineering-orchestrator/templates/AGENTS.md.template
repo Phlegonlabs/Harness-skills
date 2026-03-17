@@ -85,7 +85,7 @@ Full list: `docs/ai/03-guardrails.md`
 
 ## Automated Hooks
 
-Git hooks, Claude Code hooks, and Codex CLI hooks automatically enforce Guardians G2-G10:
+Git hooks, Claude Code hooks, and Codex CLI hooks automatically enforce or surface Guardians G2-G12:
 
 - **Pre-commit**: blocks commits on main, files > 400 lines, forbidden patterns, secrets, LEARNING.md
 - **Commit-msg**: validates the current Task-ID and PRD mapping during EXECUTING on feature branches
@@ -93,6 +93,7 @@ Git hooks, Claude Code hooks, and Codex CLI hooks automatically enforce Guardian
 - **Post-commit**: auto-syncs AGENTS.md ↔ CLAUDE.md
 - **Claude Code**: PreToolUse blocks forbidden patterns in Write/Edit and dangerous commands in Bash
 - **Codex CLI**: execpolicy rules block `--no-verify`, `git add .`, `git add -A`; notification hooks run post-task validation
+- **Instruction-level only**: G1, G7, and G11 remain Orchestrator / AGENTS.md contracts rather than hook-managed runtime checks
 - **Emergency bypass**: `HARNESS_HOOKS_SKIP=1 git commit ...`
 
 Hook surfaces are guardrails. They do not replace orchestrator dispatch/lifecycle logic.
@@ -121,18 +122,19 @@ When running as an orchestrator-dispatched Codex child subagent:
 
 ```text
 [ ] PRD DoD achieved
-[ ] bun run typecheck    → 0 errors
-[ ] bun run lint         → 0 warnings
-[ ] bun run format:check → consistent formatting
-[ ] bun test             → all passing
-[ ] bun run build        → success
+[ ] Run the configured typecheck command from the active toolchain
+[ ] Run the configured lint command from the active toolchain
+[ ] Run the configured format-check command from the active toolchain
+[ ] Run the configured test command from the active toolchain
+[ ] Run the configured build command from the active toolchain
 [ ] All changed files ≤ 400 lines
 [ ] No blocking forbidden patterns (console.log / : any / @ts-ignore / sk- / Bearer / ghp_ / eval( / innerHTML / dangerouslySetInnerHTML / http://)
 [ ] Atomic Commit done (includes Task-ID and PRD mapping)
 [ ] docs/PROGRESS.md and docs/progress/ updated
 ```
 
-> If formatting fails, run `bun run format` to auto-fix, then re-submit.
+> Use `state.toolchain.commands` as the source of truth for project-specific typecheck / lint / format / test / build commands.
+> If formatting fails, run the configured format command from the active toolchain, then re-submit.
 
 Full execution rules: `docs/ai/04-task-execution.md`
 
@@ -155,9 +157,16 @@ Full details: `docs/ai/06-context-health.md`
 
 ```bash
 bun harness:advance
+bun harness:orchestrate
+bun harness:orchestrate --parallel
+bun harness:autoflow
 bun harness:stage --status
 bun harness:stage --promote V2
 bun harness:sync-backlog
+bun harness:scope-change --preview
+bun harness:scope-change --apply
+bun harness:scope-change --reject <id>
+bun .harness/orchestrator.ts --parallel
 bun .harness/state.ts --show
 bun harness:env
 bun harness:validate --phase EXECUTING

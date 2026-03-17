@@ -8,9 +8,9 @@ Thank you for your interest in contributing. This document provides guidelines a
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) (latest stable version)
+- The runtime(s) required by this repository's confirmed stack
 - [Git](https://git-scm.com/)
-- A code editor with TypeScript support (VS Code recommended)
+- A code editor suitable for the project's language(s)
 
 ### Getting Started
 
@@ -19,18 +19,10 @@ Thank you for your interest in contributing. This document provides guidelines a
 git clone <repository-url>
 cd [PROJECT_NAME]
 
-# Install dependencies
-bun install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your local configuration
-
-# Verify the setup
-bun run typecheck
-bun run lint
-bun test
-bun run build
+# Follow the Quick Start instructions in README.md to:
+# 1. install dependencies
+# 2. create local env/config files
+# 3. run the full verification suite
 ```
 
 ---
@@ -117,7 +109,7 @@ Task-ID: T015
 
 ## Testing Requirements
 
-- All tests must pass before submitting a PR: `bun test`
+- All required verification commands must pass before submitting a PR
 - Maintain or improve test coverage — do not reduce coverage
 - Write tests for:
   - New features (unit + integration where applicable)
@@ -127,17 +119,12 @@ Task-ID: T015
 ### Running Tests
 
 ```bash
-# Run all tests
-bun test
-
-# Run tests in watch mode
-bun test --watch
-
-# Run a specific test file
-bun test src/services/auth.test.ts
-
-# Run with coverage
-bun test --coverage
+# Run the repository's standard verification commands from README.md or package/task scripts.
+# Common categories:
+# - typecheck / compile
+# - lint / format check
+# - test / coverage
+# - build / package
 ```
 
 ---
@@ -145,24 +132,17 @@ bun test --coverage
 ## Code Style
 
 - Follow existing patterns in the codebase — consistency is more important than personal preference
-- Run the linter and formatter before committing:
+- Run the repository's lint and formatting checks before committing:
 
 ```bash
-# Check for lint errors
-bun run lint
-
-# Check formatting
-bun run format:check
-
-# Auto-fix formatting
-bun run format
+# Use the commands defined by this repository's toolchain.
+# If the repo provides scripts or task aliases, prefer those over ad-hoc commands.
 ```
 
 ### Key Rules
 
-- No `console.log` in committed code (use the project logger)
-- No `: any` type annotations — use precise types
-- No `@ts-ignore` or `@ts-expect-error` without a linked issue
+- No debug-only logging or temporary instrumentation in committed code
+- Avoid weak typing / unchecked escapes without a linked justification
 - No hardcoded secrets, API keys, or tokens
 - Files must not exceed 400 lines
 - Functions should be concise and single-purpose

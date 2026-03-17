@@ -1,6 +1,7 @@
 import { createHash } from "crypto"
 import { extname, join } from "path"
 import { existsSync, readdirSync, readFileSync } from "fs"
+import { UNCONFIGURED_TOOLCHAIN_SENTINEL } from "../toolchain-detect.js"
 
 export type ForbiddenPatternRule = {
   label: string
@@ -16,6 +17,19 @@ export type ForbiddenPatternHit = {
   line: number
 }
 
+type ToolchainLike = {
+  sourceRoot?: string
+  sourceExtensions?: string[]
+  forbiddenPatterns?: Array<{
+    pattern: string
+    reason: string
+    severity: "block" | "warn"
+  }>
+}
+
+type ToolchainCommandKey = "install" | "typecheck" | "lint" | "format" | "test" | "build" | "depCheck"
+type ToolchainCommandMap = Partial<Record<ToolchainCommandKey, ToolchainCommandSpec>>
+
 export const FORBIDDEN_PATTERN_RULES: ForbiddenPatternRule[] = [
   { label: "console.log", pattern: /console\.log\s*\(/, blocking: true },
   { label: ": any", pattern: /:\s*any\b/, blocking: true },
@@ -29,6 +43,13 @@ export const FORBIDDEN_PATTERN_RULES: ForbiddenPatternRule[] = [
   { label: "innerHTML assignment", pattern: /\.innerHTML\s*=/, blocking: true },
   { label: "dangerouslySetInnerHTML", pattern: /dangerouslySetInnerHTML/, blocking: true },
   { label: "hardcoded http://", pattern: /["']http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/, blocking: true },
+]
+
+const DEFAULT_SOURCE_ROOT = "src"
+const DEFAULT_SOURCE_EXTENSIONS = [
+  ".ts", ".tsx", ".js", ".jsx",
+  ".py", ".go", ".rs", ".kt", ".kts",
+  ".java", ".swift", ".dart", ".rb", ".cs",
 ]
 
 export function findFiles(dir: string, exts: string[]): string[] {
@@ -78,8 +99,30 @@ export function searchInFiles(dir: string, pattern: RegExp, exts: string[]) {
   return matches
 }
 
-export function findForbiddenPatternHits(dir: string, exts: string[]): ForbiddenPatternHit[] {
-  return FORBIDDEN_PATTERN_RULES.flatMap(rule =>
+export function buildForbiddenPatternRules(toolchain?: ToolchainLike): ForbiddenPatternRule[] {
+  const dynamicRules: ForbiddenPatternRule[] = []
+
+  for (const rule of toolchain?.forbiddenPatterns ?? []) {
+    try {
+      dynamicRules.push({
+        label: rule.reason || rule.pattern,
+        pattern: new RegExp(rule.pattern),
+        blocking: rule.severity !== "warn",
+      })
+    } catch {
+      // Ignore invalid regex patterns rather than crashing validation.
+    }
+  }
+
+  return [...FORBIDDEN_PATTERN_RULES, ...dynamicRules]
+}
+
+export function findForbiddenPatternHits(
+  dir: string,
+  exts: string[],
+  toolchain?: ToolchainLike,
+): ForbiddenPatternHit[] {
+  return buildForbiddenPatternRules(toolchain).flatMap(rule =>
     searchInFiles(dir, rule.pattern, exts).map(hit => ({
       ...hit,
       blocking: rule.blocking,
@@ -102,28 +145,73 @@ export function filesShareHash(...paths: string[]): boolean {
 
 export interface ToolchainCommandSpec {
   command: string
+  label?: string
   optional?: boolean
+}
+
+export function createUnconfiguredToolchainCommand(
+  key: ToolchainCommandKey,
+  options: { optional?: boolean } = {},
+): ToolchainCommandSpec {
+  return {
+    command: `echo "${UNCONFIGURED_TOOLCHAIN_SENTINEL}:${key}"`,
+    label: `${key} (not configured)`,
+    optional: options.optional ?? false,
+  }
+}
+
+export function isToolchainCommandConfigured(spec?: ToolchainCommandSpec | null): boolean {
+  return Boolean(spec?.command) && !spec.command.includes(UNCONFIGURED_TOOLCHAIN_SENTINEL)
+}
+
+export function resolveToolchainCommand(
+  commands: ToolchainCommandMap | undefined,
+  key: ToolchainCommandKey,
+  options: { optional?: boolean } = {},
+): ToolchainCommandSpec {
+  return commands?.[key] ?? createUnconfiguredToolchainCommand(key, options)
+}
+
+export function resolveToolchainSourceRoot(toolchain?: ToolchainLike): string {
+  const sourceRoot = toolchain?.sourceRoot?.trim()
+  return sourceRoot && sourceRoot.length > 0 ? sourceRoot : DEFAULT_SOURCE_ROOT
+}
+
+export function resolveToolchainSourceExtensions(toolchain?: ToolchainLike): string[] {
+  return toolchain?.sourceExtensions?.length ? toolchain.sourceExtensions : DEFAULT_SOURCE_EXTENSIONS
 }
 
 /** Execute a toolchain command string (e.g. "bun run typecheck", "cargo check"). */
 export async function runToolchainCommand(
   spec: ToolchainCommandSpec,
 ): Promise<{ ok: boolean; output: string }> {
-  if (spec.optional) {
-    // Optional commands that are not configured succeed silently
-    if (spec.command.startsWith("echo ")) {
+  if (!isToolchainCommandConfigured(spec)) {
+    if (spec.optional) {
       return { ok: true, output: "" }
     }
+    return {
+      ok: false,
+      output: `${spec.label ?? spec.command} is not configured. Update state.toolchain.commands before running validation.`,
+    }
+  }
+
+  if (spec.optional) {
+    // Optional commands may still fail when explicitly configured.
   }
   try {
-    const parts = spec.command.split(/\s+/)
-    const proc = Bun.spawn(parts, { stdout: "pipe", stderr: "pipe" })
+    const proc = Bun.spawn(
+      process.platform === "win32"
+        ? ["cmd.exe", "/d", "/s", "/c", spec.command]
+        : ["sh", "-lc", spec.command],
+      { stdout: "pipe", stderr: "pipe" },
+    )
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
     ])
     await proc.exited
-    return { ok: proc.exitCode === 0, output: proc.exitCode === 0 ? stdout : stderr }
+    const output = proc.exitCode === 0 ? stdout : stderr || stdout
+    return { ok: proc.exitCode === 0, output }
   } catch (error) {
     return { ok: false, output: String(error) }
   }

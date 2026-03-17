@@ -1,7 +1,7 @@
 import { existsSync } from "fs"
 import type { Phase, ProjectState } from "../../types"
 import { isUiProject } from "../shared"
-import { runBun, runGit, runToolchainCommand } from "./helpers"
+import { resolveToolchainCommand, runBun, runGit, runToolchainCommand } from "./helpers"
 import type { ValidationReporter } from "./reporter"
 import { computeHarnessScore } from "./milestone-score"
 import { getPhaseStructuralChecks } from "../phase-structural"
@@ -84,13 +84,13 @@ export async function validatePhaseGate(
 
     case "EXECUTING": {
       const tc = state.toolchain?.commands
-      const typecheck = await runToolchainCommand(tc?.typecheck ?? { command: "bun run typecheck" })
+      const typecheck = await runToolchainCommand(resolveToolchainCommand(tc, "typecheck"))
       check(typecheck.ok, "typecheck → 0 errors", typecheck.ok ? undefined : typecheck.output)
 
-      const format = await runToolchainCommand(tc?.format ?? { command: "bun run format:check" })
+      const format = await runToolchainCommand(resolveToolchainCommand(tc, "format"))
       check(format.ok, "format → formatting is clean", format.ok ? undefined : format.output)
 
-      const build = await runToolchainCommand(tc?.build ?? { command: "bun run build" })
+      const build = await runToolchainCommand(resolveToolchainCommand(tc, "build"))
       check(build.ok, "build → success", build.ok ? undefined : build.output)
       break
     }

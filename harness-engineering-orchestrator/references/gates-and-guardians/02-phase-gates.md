@@ -31,8 +31,8 @@ Define the transition conditions between phases.
 - `SCAFFOLD`
   - `docs/PRD.md` or `docs/prd/` exists
   - `docs/ARCHITECTURE.md` or `docs/architecture/` exists
-  - GitBook initialized
-  - `docs/gitbook/SUMMARY.md` exists
+  - GitBook is initialized when required by the current harness level
+  - `docs/gitbook/SUMMARY.md` exists when GitBook is part of the chosen template set
   - Architecture explicitly defines dependency direction (`types → config → lib → services → app`)
   - PRD has at least one milestone
 
@@ -48,7 +48,7 @@ Define the transition conditions between phases.
   - All milestone statuses are `COMPLETE` / `MERGED`
 
 - `COMPLETE`
-  - Harness Score >= 80
+  - Harness Score behavior is level-aware (`Lite`: reported, `Standard`: reported, `Full`: must be `>= 80`)
   - `README.md` final version completed
   - `git worktree list --porcelain` shows only the main worktree
   - `bun harness:compact --status` is executable

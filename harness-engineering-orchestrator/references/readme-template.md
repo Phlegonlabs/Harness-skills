@@ -46,12 +46,16 @@ The Docs Generator creates a draft in Phase 4, and the final version is complete
 \`\`\`bash
 git clone https://github.com/[ORG]/[REPO].git
 cd [REPO]
-bun install
-cp .env.example .env.local
-bun dev
+# Install dependencies with the project's package manager
+# Example: bun install / npm install / uv sync / cargo build
+
+# Create local env/config from the provided example if required
+# Example: cp .env.example .env.local
+
+# Start the local app using the project's documented dev command
 \`\`\`
 
-Open [http://localhost:3000](http://localhost:3000) to see the result.
+Open the local URL or runtime output documented by the project to verify the app starts correctly.
 
 ## 📖 Documentation
 
@@ -100,7 +104,7 @@ git clone https://github.com/[YOUR_FORK]/[REPO].git
 git checkout -b feat/your-feature
 
 # 3. Make your changes and test
-bun test
+Run the project's documented verification commands
 
 # 4. Open a Pull Request
 \`\`\`

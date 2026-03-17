@@ -17,7 +17,7 @@ The audit command produces a comprehensive project health report covering docume
 
 - PRD exists and contains milestones
 - Architecture doc exists and defines dependency direction
-- GitBook initialized with SUMMARY.md
+- GitBook initialized with SUMMARY.md when required by the current harness level
 - CHANGELOG.md exists and has entries for merged milestones
 - README.md exists (isFinal checked in COMPLETE phase)
 
@@ -34,9 +34,9 @@ The audit command produces a comprehensive project health report covering docume
 ### 4. Test Health
 
 - Test files exist for critical modules
-- `bun test` passes (or equivalent toolchain command)
-- Build succeeds
-- Typecheck passes
+- Configured test command passes
+- Configured build command passes
+- Configured typecheck command passes
 
 ### 5. Dependency Health
 

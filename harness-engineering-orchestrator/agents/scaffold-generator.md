@@ -59,6 +59,7 @@ Select scaffold templates based on the confirmed tech stack and detected ecosyst
 ### Group 4: Build Infrastructure
 
 - [ ] `package.json` has `harness:advance`, `harness:validate`, `harness:compact` scripts
+- [ ] `package.json` has `harness:orchestrate`
 - [ ] `package.json` has `typecheck`, `format:check`, `build` scripts
 - [ ] CI/CD pipeline files exist (`.github/workflows/`) (Standard/Full)
 - [ ] PR template exists (`.github/pull_request_template.md`) (Full only)
@@ -67,8 +68,8 @@ Select scaffold templates based on the confirmed tech stack and detected ecosyst
 ### Group 5: Verification
 
 - [ ] `bun install` succeeds
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` passes
+- [ ] the configured typecheck command from `state.toolchain.commands` passes
+- [ ] the configured build command from `state.toolchain.commands` passes
 - [ ] `bun harness:validate --phase EXECUTING` passes
 
 Complete each group in order. Verify each item exists before moving on.
@@ -92,9 +93,9 @@ After all groups are verified:
 
 ## Done-When
 
-- `bun harness:advance` succeeds
 - `bun harness:validate --phase EXECUTING` passes
-- Rerunning `bun .harness/orchestrator.ts` dispatches the next runtime agent
+- The scaffold verification checklist is complete
+- The next safe step is to stop at the boundary, ask for confirmation, and then run `bun harness:advance`
 
 ## Constraints
 

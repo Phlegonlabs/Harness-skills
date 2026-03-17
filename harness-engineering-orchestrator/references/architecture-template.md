@@ -8,6 +8,8 @@ Architecture uses a "thin entry + modules" structure:
 
 The Orchestrator uses this content to determine which layers each Task touches and how to organize the code.
 
+Treat the directory names, manifests, and commands below as reference defaults, not fixed requirements. The final Architecture must follow the confirmed stack in the PRD and the detected project toolchain.
+
 ---
 
 ```markdown
@@ -31,9 +33,10 @@ Browser/App ──→ Cloudflare/Vercel ──→ API Layer ──→ Database
                                    AI Services      Cache
 ```
 
-### 1.2 Project Type
-- [ ] Single Repo (legacy / exception only)
-- [x] Monorepo (Bun Workspaces default)
+### 1.2 Repository Shape
+- [ ] Single repo (legacy / narrow-scope exception)
+- [x] Monorepo (recommended when multiple surfaces or shared packages exist)
+- [ ] Multi-package / service repo without app workspaces
 
 ---
 
@@ -60,12 +63,12 @@ Browser/App ──→ Cloudflare/Vercel ──→ API Layer ──→ Database
 │
 │ # Note: LEARNING.md is global (~/.codex/ and ~/.claude/), not in the repo
 │
-├── src/                     ← Root scaffold / orchestration seed code
-│   ├── types/               ← Layer 1: Type definitions (no dependencies)
-│   ├── config/              ← Layer 2: Configuration (depends only on types)
-│   ├── lib/                 ← Layer 3: Utility functions (depends only on types/config)
-│   ├── services/            ← Layer 4: Business logic (depends only on types/config/lib)
-│   └── app/                 ← Layer 5: UI / API (can depend on all layers)
+├── src/                     ← Root scaffold / orchestration seed code (or domain modules for smaller repos)
+│   ├── types/               ← Layer 1: Shared contracts / schemas (adapt per language)
+│   ├── config/              ← Layer 2: Runtime configuration
+│   ├── lib/                 ← Layer 3: Utilities / adapters
+│   ├── services/            ← Layer 4: Business logic / use cases
+│   └── app/                 ← Layer 5: Delivery surface (UI / API / CLI handlers)
 │
 ├── tests/
 │   ├── unit/
@@ -73,9 +76,8 @@ Browser/App ──→ Cloudflare/Vercel ──→ API Layer ──→ Database
 │   └── e2e/
 │
 ├── .github/workflows/       ← CI/CD
-├── biome.json               ← Linter + Formatter
-├── tsconfig.json
-└── package.json             ← Bun
+├── [tooling config files]   ← e.g. biome.json / ruff.toml / Cargo.toml / build.gradle.kts
+└── [manifest file]          ← e.g. package.json / pyproject.toml / Cargo.toml / go.mod
 ```
 
 ---
@@ -99,31 +101,30 @@ Layer 1  Layer 2  Layer 3  Layer 4  Layer 5
 ## 4. Layer Responsibilities
 
 ### types/
-- All shared TypeScript Interfaces and Types
+- Shared contracts, schemas, DTOs, or type aliases
 - Contains no business logic
-- Does not reference any other layer
-- Examples: `User`, `Project`, `ApiResponse<T>`
+- Does not reference any higher layer
+- Examples: `User`, `Project`, `ApiResponse<T>`, protocol structs, schema modules
 
 ### config/
-- Environment variable reading (the only place that reads `process.env`)
+- Environment and runtime configuration loading
 - Constant definitions (API endpoints, configuration values)
-- Examples: `env.ts`, `constants.ts`
+- Examples: `env.ts`, `settings.py`, `config.rs`, `application.yml`
 
 ### lib/
-- Pure utility functions (prefer no side effects)
-- Thin wrappers around third-party SDKs (logger, db client)
-- Examples: `logger.ts`, `db.ts`, `validators.ts`
+- Utility helpers and infrastructure adapters with minimal domain knowledge
+- Thin wrappers around third-party SDKs (logger, db client, HTTP client)
+- Examples: `logger.ts`, `db.py`, `validators.go`, `client.rs`
 
 ### services/
 - Core business logic
 - Combines lib functions to perform business operations
 - Each service corresponds to one business domain
-- Examples: `userService.ts`, `authService.ts`
+- Examples: `userService.ts`, `auth_service.py`, `payments.rs`
 
 ### app/
-- UI components (React/Vue components)
-- API Route Handlers
-- Pages (Next.js pages)
+- Delivery-layer code only
+- Examples: UI components, API route handlers, CLI commands, job runners
 - Orchestration only — no business logic
 
 ---
@@ -175,12 +176,12 @@ async function getUser(id: string): Promise<Result<User>> {
 
 ## 7. Testing Strategy
 
-| Layer | Test Type | Tool | Target Coverage |
-|-------|-----------|------|-----------------|
-| types | Type tests | tsc | 100% |
-| lib | Unit tests | bun test | > 80% |
-| services | Unit + Integration | bun test | > 70% |
-| app/API | Integration + E2E | bun test | > 50% |
+| Layer | Test Type | Tooling Guidance | Target Coverage |
+|-------|-----------|------------------|-----------------|
+| contracts / types | Static checks / schema validation | Use the stack's type or compile command | 100% for critical contracts |
+| lib | Unit tests | Use the project test command | > 80% |
+| services | Unit + Integration | Use the project test command | > 70% |
+| app / delivery surfaces | Integration + E2E | Use the project test / e2e command | > 50% |
 
 ---
 

@@ -20,7 +20,7 @@ Clone the repository and work from the repo root:
 
 ```bash
 git clone <repository-url>
-cd Harness-skills
+cd Harness-Engineering-skills
 ```
 
 Most changes to this skill live under:

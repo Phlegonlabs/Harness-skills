@@ -23,7 +23,10 @@ if (args.includes("--env")) {
 }
 
 if (args.includes("--guardian")) {
-  await validateGuardians(reporter)
+  const guardianState = loadState(false)
+  const syncedGuardianState = guardianState ? syncStateFromFilesystem(guardianState) : undefined
+  if (syncedGuardianState) saveState(syncedGuardianState)
+  await validateGuardians(reporter, syncedGuardianState)
   reporter.finish()
 }
 

@@ -19,13 +19,14 @@ Closes: PRD#F[ID]
 <!-- All items must be checked before merge -->
 
 ### Code Quality
-- [ ] `bun run typecheck` → 0 errors
-- [ ] `bun run lint` → 0 warnings
-- [ ] `bun test` → all passing
-- [ ] `bun run build` → success
+- [ ] Configured typecheck command passes
+- [ ] Configured lint command passes
+- [ ] Configured test command passes
+- [ ] Configured build command passes
 
 ### Harness
 - [ ] All tasks have Atomic Commits (with Task-ID)
+- [ ] Review tag present in commit message (`Design Review: ✅` for UI, `Code Review: ✅` for non-UI)
 - [ ] No `console.log` / `: any` / `@ts-ignore` leftovers
 - [ ] All changed files ≤ 400 lines
 - [ ] `docs/PROGRESS.md` updated
@@ -51,7 +52,7 @@ bun harness:validate --milestone M[N]
 1.
 2.
 
-**Test coverage**: X% (`bun test --coverage`)
+**Test coverage**: X% (use the configured coverage command for this toolchain)
 
 ---
 

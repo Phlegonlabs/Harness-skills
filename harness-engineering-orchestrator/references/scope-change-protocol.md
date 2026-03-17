@@ -2,25 +2,15 @@
 
 ## Purpose
 
-Reference guide for the semi-automated scope change flow. Covers how new requirements are added to the PRD and execution state during active development.
+Define the PRD-first flow for adding requirements after execution has already started. Scope changes never bypass the PRD and never interrupt running agents.
 
-## Flow Overview
+## Core Rule
 
-1. User describes new requirements
-2. Orchestrator constructs `ScopeChangeRequest`
-3. Request queued in `state.execution.pendingScopeChanges[]`
-4. User previews: `bun harness:scope-change --preview`
-5. User confirms: `bun harness:scope-change --apply`
-6. PRD updated + `syncExecutionFromPrd()` syncs state
-7. New tasks appear in next dispatch cycle
+The PRD is always updated first. Execution state is derived from the PRD afterward.
 
-## G1 Compliance
+## ScopeChangeRequest
 
-The PRD is always written first — state is derived from the PRD. This preserves G1 (PRD is the single source of requirements).
-
-## Scope Change Request
-
-```typescript
+```ts
 interface ScopeChangeRequest {
   id: string
   description: string
@@ -39,80 +29,79 @@ interface ScopeChangeRequest {
 }
 ```
 
+Queued requests live in `state.execution.pendingScopeChanges[]`.
+
+## Flow
+
+1. User describes new scope.
+2. Orchestrator creates a `ScopeChangeRequest`.
+3. Request is queued with `status: "pending"`.
+4. User previews the PRD delta.
+5. User confirms apply or reject.
+6. PRD is updated.
+7. `syncExecutionFromPrd()` / `bun harness:sync-backlog` refreshes execution state.
+8. New milestones/tasks become eligible on a later dispatch cycle.
+
+## Preview Output
+
+Preview should show:
+
+- request id
+- target milestone behavior
+- any new milestone id that would be created
+- new task ids that would be added
+- the PRD delta before it is written
+
 ## Target Resolution
 
-| Condition | Behavior |
-|-----------|----------|
-| Target milestone is PENDING/IN_PROGRESS | Append tasks to it |
-| Target milestone is MERGED/COMPLETE | Create new milestone |
-| No target specified | Create new milestone |
+| Condition | Result |
+|-----------|--------|
+| `targetMilestoneId` is `PENDING` or `IN_PROGRESS` | Append tasks there |
+| `targetMilestoneId` is `REVIEW`, `MERGED`, or `COMPLETE` | Create a new milestone |
+| No target supplied | Create a new milestone |
 
-## Continuation After Completion
+New milestone ids auto-increment. New task ids auto-increment globally.
 
-When all milestones are complete but new scope is added:
-- `syncExecutionFromPrd()` detects new milestones
-- Phase resets from VALIDATING/COMPLETE to EXECUTING
-- New milestones enter as PENDING
+## Phase Reopening
 
-## PRD Delta Generation
+If new scope lands after all current work is done:
 
-```typescript
-function generatePrdDelta(
-  request: ScopeChangeRequest,
-  state: ProjectState,
-  prdContent: string
-): PrdDelta
-
-interface PrdDelta {
-  insertAfterLine: number
-  content: string
-  newMilestoneId?: string   // Set when a new milestone is created
-  newTaskIds: string[]      // IDs of tasks being added
-}
-```
-
-### Target Milestone Resolution
-
-| Condition | Behavior |
-|-----------|----------|
-| `targetMilestoneId` specified, milestone is PENDING/IN_PROGRESS | Append tasks under existing milestone |
-| `targetMilestoneId` specified, milestone is REVIEW/MERGED/COMPLETE | Create new milestone with auto-incremented ID |
-| `targetMilestoneId` not specified | Create new milestone with auto-incremented ID |
-
-### ID Generation
-
-New milestones: `M{N+1}` where N is highest existing. New tasks: `T{N+1}` where N is highest existing across all milestones.
-
-## Phase Re-Entry
-
-When scope is added after all milestones are complete:
-- If `state.phase` is VALIDATING or COMPLETE, it resets to EXECUTING
-- New milestones enter as PENDING with auto-generated worktree paths
-- `syncExecutionFromPrd()` detects the new milestones and updates execution state
+- `VALIDATING` or `COMPLETE` reopens back to `EXECUTING`
+- new milestones enter as `PENDING`
+- new worktree paths are derived for the added milestone when needed
 
 ## Mid-Execution Safety
 
-- **Non-interruption guarantee**: Running agents are never interrupted by scope changes. New tasks enter as PENDING.
-- **Priority dispatch**: When `priority: "urgent"`, `activateNextTask()` prefers urgent tasks.
-- **Dispatcher integration**: If `pendingScopeChanges` with `status: "pending"` exist, dispatcher surfaces them instead of dispatching any agent.
-
-### Apply Sequence
-
-1. Read all `pendingScopeChanges` with `status: "previewed"`
-2. Generate PRD delta for each
-3. Apply delta to `docs/PRD.md`
-4. Run `syncExecutionFromPrd()`
-5. Mark `status: "applied"`
-6. Record `scope_change_applied` workflow event
-7. Remove from `pendingScopeChanges`
+- Running agents are never interrupted.
+- Pending scope changes are surfaced before any new execution dispatch.
+- Urgent scope changes may influence next-task priority only after apply.
 
 ## Commands
 
 ```bash
-bun harness:scope-change --preview          # Preview changes
-bun harness:scope-change --apply            # Apply changes
-bun harness:scope-change --from-stdin       # Pipe in JSON request
-bun harness:scope-change --urgent           # Mark as urgent
-bun harness:scope-change --milestone M3     # Target specific milestone
-bun harness:scope-change --reject <id>      # Reject a change
+bun harness:scope-change --preview
+bun harness:scope-change --apply
+bun harness:scope-change --urgent
+bun harness:scope-change --milestone M[N]
+bun harness:scope-change --reject <id>
+bun harness:scope-change --from-stdin
 ```
+
+## Apply Sequence
+
+1. Read all previewed scope changes.
+2. Generate the PRD delta for each.
+3. Write the PRD changes.
+4. Sync execution state from the updated PRD.
+5. Record the workflow event.
+6. Remove or finalize the applied requests.
+
+## Dispatcher Integration
+
+The dispatcher checks for `pendingScopeChanges` before sending execution agents. If unresolved entries exist, it surfaces them to the user and stops there.
+
+## Guarantees
+
+- G1 remains intact because execution state never becomes the source of truth.
+- Scope changes may add work, but they do not retroactively fake completion.
+- Rejected requests remain auditable through workflow history even if they do not enter the backlog.

@@ -1,48 +1,57 @@
 ## 04. Final Validation
 
-### Harness Score
+### Level-Scoped Critical Checklist
 
-Full validation checks 19 critical items:
+Final validation is level-aware:
 
-- AGENTS / CLAUDE
-- PRD / Architecture / Progress
-- `.harness/state.json`
-- GitBook
-- README final version completed (`docs.readme.isFinal = true`)
-- CI / PR template / `.env.example` / Biome
-- Bun package manager
-- `.gitignore`
-- ADR
-- Tech Stack confirmed
-- All milestones complete
+| Level | Critical items | Score behavior | Gate behavior |
+|------|----------------|----------------|---------------|
+| Lite | 8 | reported only | score does not block |
+| Standard | 15 | reported only | warnings surfaced, critical failures still matter |
+| Full | 19 | must be `>= 80` | score threshold blocks |
 
-> The pass criteria for `bun harness:validate` are: **all 19 critical items pass, and Harness Score >= 80**. The score is a necessary condition for the final gate, but not the only condition.
+Critical item groups:
+
+- Lite: AGENTS/CLAUDE, PRD, state, env example, `.gitignore`, milestones complete
+- Standard: Lite + Architecture, Progress, README final, CI, linter/formatter, manifest, confirmed stack
+- Full: Standard + GitBook summary, PR template, ecosystem `.gitignore` entries, ADR presence
 
 ### Pass Threshold
 
-- Harness Score must be `>= 80`
-- If any critical item fails, `bun harness:validate` must exit with code `1`
-- If `score < 80`, `bun harness:validate` must exit with code `1`
-- Recommended grading display:
-  - `>= 90` and all critical items pass: Excellent
-  - `>= 80` and all critical items pass: Final Gate Passed
-  - `>= 80` but critical items still failing: Score meets target, but Final Gate not passed
-  - `< 80`: Not Passed
+- Lite: score is informational; all applicable critical checks should still be reported
+- Standard: score is informational; unresolved critical failures still fail the final gate contract
+- Full: all applicable critical checks must pass and Harness Score must be `>= 80`
+
+Recommended grading display:
+
+- `>= 90` and no critical failures: Excellent
+- `>= 80` and all critical checks pass: Final Gate Passed
+- `>= 80` but critical failures remain: Score meets target, gate still fails
+- `< 80`: Not Passed
 
 ### Score Formula
 
+Use the level-appropriate denominator:
+
 ```text
-score = round((passing / 19) * 100)
+Lite:     score = round((passing / 8) * 100)
+Standard: score = round((passing / 15) * 100)
+Full:     score = round((passing / 19) * 100)
 ```
 
-- **19** is the total number of critical items.
-- `passing` is the count of critical items that pass.
-- Example: 16/19 passing = `round((16 / 19) * 100)` = **84** (passes, >= 80).
-- Example: 15/19 passing = `round((15 / 19) * 100)` = **79** (fails, < 80).
+Examples:
+
+- Lite: 7/8 = 88
+- Standard: 13/15 = 87
+- Full: 16/19 = 84
 
 ### Output
+
+Persist:
 
 - `state.validation.score`
 - `state.validation.criticalPassed`
 - `state.validation.criticalTotal`
-- Final report message
+- final validation report output
+
+The final report should always state both the score and whether any critical checks still failed.

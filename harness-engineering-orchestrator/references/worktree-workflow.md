@@ -161,20 +161,18 @@ git commit -m "WIP: half done auth"
 # Does this commit only contain changes from a single Task?
 git diff --staged   # review what will be committed
 
-# Build passes?
-bun run build
+# Build / package command passes?
+# Run the repository's build command
 
-# Lint passes?
-bun run lint
+# Lint / static analysis passes?
+# Run the repository's lint or static-analysis command
 
 # Tests pass?
-bun test
+# Run the repository's test command
 
 # Only stage relevant files (don't use git add -A)
-git add src/lib/auth.ts
-git add src/app/api/auth/
-git add src/components/auth/
-git add tests/unit/auth.test.ts
+git add [relevant file 1]
+git add [relevant file 2]
 ```
 
 ---

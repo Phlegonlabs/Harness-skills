@@ -23,8 +23,8 @@ DATABASE_URL=postgresql://user:password@localhost:5432/[PROJECT_NAME]_dev
 # ── Authentication ───────────────────────────────────────
 
 AUTH_SECRET=your-auth-secret-here-min-32-chars
-# Generate: openssl rand -base64 32 (macOS/Linux)
-# Or: bun -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# Generate with any secure random-string method available in your environment
+# Example: bun -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 # ── AI Provider (if used) ────────────────────────────────
 

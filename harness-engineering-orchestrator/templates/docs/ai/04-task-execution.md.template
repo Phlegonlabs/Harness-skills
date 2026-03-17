@@ -4,18 +4,19 @@
 
 ```text
 [ ] PRD DoD achieved
-[ ] bun run typecheck    → 0 errors
-[ ] bun run lint         → 0 warnings
-[ ] bun run format:check → consistent formatting
-[ ] bun test             → all passing
-[ ] bun run build        → success
+[ ] Run the configured typecheck command from the active toolchain
+[ ] Run the configured lint command from the active toolchain
+[ ] Run the configured format-check command from the active toolchain
+[ ] Run the configured test command from the active toolchain
+[ ] Run the configured build command from the active toolchain
 [ ] All changed files ≤ 400 lines
 [ ] No blocking forbidden patterns (console.log / : any / @ts-ignore / sk- / Bearer / ghp_)
 [ ] Atomic Commit done (includes Task-ID and PRD mapping)
 [ ] docs/PROGRESS.md and docs/progress/ updated
 ```
 
-> If formatting fails, run `bun run format` to auto-fix, then re-submit.
+> Use `state.toolchain.commands` as the source of truth for project-specific validation commands.
+> If formatting fails, run the configured format command from the active toolchain, then re-submit.
 
 > If the user adds new feature scope that is not already represented by the current Task / PRD mapping, stop implementation. Update `docs/PRD.md` / `docs/prd/` first, run `bun harness:sync-backlog`, then resume execution from the new milestone/task.
 >
@@ -39,3 +40,8 @@ See `docs/ai/06-context-health.md` for details.
 - Frontend Designer produces the specification first
 - Design Reviewer must approve (acceptance) before commit is allowed
 - Commit message must include `Design Review: ✅`
+
+### Additional Requirements for Non-UI Tasks
+
+- Code Reviewer must approve before commit is allowed
+- Commit message must include `Code Review: ✅`

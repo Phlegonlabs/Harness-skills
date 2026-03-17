@@ -50,7 +50,7 @@ Define persistent constraints that remain effective throughout the entire proces
 
 #### G7 — UI tasks must follow the design closed-loop
 
-- **Rule**: Every UI task requires: (1) Frontend Designer produces a spec, (2) Execution Engine implements, (3) Design Reviewer validates. Commit must include `Design Review: pass`.
+- **Rule**: Every UI task requires: (1) Frontend Designer produces a spec, (2) Execution Engine implements, (3) Design Reviewer validates. Commit must include `Design Review: ✅`.
 - **Detection**: Orchestrator checks task type. If UI, it enforces the three-step loop and verifies the design review tag in the commit message.
 - **Violation handling**: Blocking — task cannot be completed without design review approval.
 - **Owner**: Orchestrator / Design Reviewer

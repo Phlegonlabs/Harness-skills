@@ -116,7 +116,7 @@ Full:     score = round((passing / 19) * 100)
 
 ### Passed Checks (X/[level-total], X/[level-critical] critical)
 - pass: AGENTS.md is present
-- pass: packageManager uses Bun
+- pass: project manifest is present and valid
 
 ### Must Fix (X issues)
 - fail: README.md is not final yet

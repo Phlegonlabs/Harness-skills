@@ -1,12 +1,23 @@
 ---
 name: harness-engineering-orchestrator
 description: >
-  Scaffold or continue a software project with a Harness-style workflow.
-  Use when the user wants a new app or repo, a structured bootstrap, or milestone-driven execution from PRD through implementation.
+  Repo-backed PRD-to-code orchestration for Claude and Codex.
+  Use when the user wants a new app or existing repository run through discovery, architecture, milestones, execution, and validation instead of ad-hoc prompt-only delivery.
   Supports greenfield and existing codebases across web, iOS, Android, CLI, agent, API, and desktop projects in any language ecosystem (JavaScript/TypeScript, Python, Go, Rust, Java, Kotlin, Swift, Flutter, and more).
 ---
 
 # Harness Engineering and Orchestrator
+
+## What This Skill Does
+
+This skill turns a project idea or an existing repository into a repo-backed delivery loop.
+
+- Planning is written into `docs/PRD.md` and `docs/ARCHITECTURE.md`
+- Execution state is written into `.harness/state.json` and `docs/PROGRESS.md`
+- Work is organized by milestones and tasks, not just chat turns
+- Validation decides whether the project can actually advance
+
+Use it when you want Claude or Codex to operate inside a controlled engineering workflow rather than free-form prompting.
 
 ## Harness Levels
 
@@ -30,6 +41,14 @@ Its job is to turn an idea or an existing codebase into a controlled delivery lo
 3. a milestone and task plan in `docs/PROGRESS.md`
 4. a runnable scaffold with Harness runtime files
 5. validated implementation until the project reaches `COMPLETE`
+
+### Changes in v1.7.0
+
+- Realigned workflow, agent prompts, templates, and references to the latest PRD contract instead of legacy repo-generator wording
+- Made runtime defaults toolchain-aware so existing repositories block on unconfigured commands instead of silently falling back to Bun
+- Updated validation to execute project-specific commands and scan project-specific source surfaces
+- Reworked public-facing README surfaces with stronger GitHub positioning, badges, and 1-minute onboarding demos
+- Tightened repository metadata and skill presentation so install, discovery, and release surfaces match the current product story
 
 ### Changes in v1.6.0
 
@@ -536,6 +555,7 @@ bun harness:validate --milestone M[N]       # Validate a specific milestone
 bun harness:guardian                        # Alias for bun harness:validate --guardian
 bun harness:compact                         # Generate context snapshot
 bun harness:orchestrator                    # Preferred package-script alias for bun .harness/orchestrator.ts
+bun harness:orchestrate                     # Execute one parent-owned child launch cycle
 bun .harness/orchestrator.ts                # Direct orchestrator entry point
 bun .harness/orchestrator.ts --status       # Show orchestrator status
 bun .harness/orchestrator.ts --next         # Output only the next agent/action
@@ -555,12 +575,14 @@ bun harness:sync-backlog                    # Sync PRD milestone changes into ex
 bun harness:resume                          # Show current progress, phase, blocked tasks, next steps
 bun harness:init:prd                        # Re-initialize state from PRD (migration/recovery)
 bun harness:state                           # Inspect or patch runtime state
-bun harness:learn                           # Record a learning entry to LEARNING.md
+bun harness:learn                           # Record a learning entry to the user-level LEARNING.md
 bun harness:api:add                         # Add an API endpoint scaffold
 bun harness:scope-change --preview          # Show pending scope change diffs
 bun harness:scope-change --apply            # Apply confirmed scope changes
 bun harness:scope-change --urgent           # Mark scope change as urgent priority
 bun harness:scope-change --milestone M[N]   # Target specific milestone for scope change
-bun .harness/orchestrator.ts --parallel     # Enable parallel task dispatch
+bun harness:scope-change --reject <id>      # Reject a queued scope change
+bun .harness/orchestrator.ts --parallel     # Preview parallel-eligible dispatches
+bun harness:orchestrate --parallel          # Execute one parent-owned parallel launch cycle
 bun .harness/orchestrator.ts --packet-json  # Output agent task packet as JSON
 ```
