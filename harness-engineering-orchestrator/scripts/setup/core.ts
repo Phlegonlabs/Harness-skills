@@ -10,7 +10,6 @@ import type { GitHubState } from "../../references/harness-types"
 import {
   countPrdMilestones,
   existingState,
-  readSkillFile,
   readTemplate,
   type Context,
   type SetupLogger,
@@ -101,6 +100,11 @@ function copyHarnessRuntime(skillRoot: string, logger: SetupLogger): void {
     ["harness-sync-skills.ts", ".harness/sync-skills.ts"],
     ["harness-api-add.ts", ".harness/api-add.ts"],
     ["harness-merge-milestone.ts", ".harness/merge-milestone.ts"],
+    ["harness-resume.ts", ".harness/resume.ts"],
+    ["harness-learn.ts", ".harness/learn.ts"],
+    ["harness-metrics.ts", ".harness/metrics.ts"],
+    ["harness-entropy-scan.ts", ".harness/entropy-scan.ts"],
+    ["harness-scope-change.ts", ".harness/scope-change.ts"],
   ] as const
 
   for (const [sourceFile, destination] of entryFiles) {
@@ -110,9 +114,6 @@ function copyHarnessRuntime(skillRoot: string, logger: SetupLogger): void {
 
   copyDirectory(join(skillRoot, "references", "runtime"), join(process.cwd(), ".harness", "runtime"))
   logger.log("Synced .harness/runtime/")
-
-  const resumeSource = readSkillFile(skillRoot, "references", "harness-resume.ts")
-  writeFileAlways(".harness/resume.ts", resumeSource, logger)
 }
 
 function copyAgentSpecs(skillRoot: string, logger: SetupLogger): void {
@@ -416,6 +417,11 @@ function updatePackageJson(logger: SetupLogger): void {
     "harness:validate:milestone": "bun .harness/validate.ts --milestone",
     "harness:guardian": "bun .harness/validate.ts --guardian",
     "harness:resume": "bun .harness/resume.ts",
+    "harness:learn": "bun .harness/learn.ts",
+    "harness:metrics": "bun .harness/metrics.ts",
+    "harness:entropy-scan": "bun .harness/entropy-scan.ts",
+    "harness:scope-change": "bun .harness/scope-change.ts",
+    "harness:orchestrator": "bun .harness/orchestrator.ts",
     "harness:orchestrate": "bun .harness/orchestrator.ts",
     "harness:merge-milestone": "bun .harness/merge-milestone.ts",
     "harness:compact": "bun .harness/compact.ts",

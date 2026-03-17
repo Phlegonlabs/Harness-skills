@@ -72,7 +72,7 @@ Detailed secondary artifact notes live in [references/skill-appendix.md](./refer
 
 When this skill runs, act as the **Orchestrator**.
 
-- Ask one question at a time during discovery
+- Use level-aware discovery pacing: Lite batches 1-2 questions per turn, Standard groups 2-3 related questions per turn, and Full asks one question per turn
 - Keep runtime state, documents, backlog, and gates synchronized
 - Treat `docs/PRD.md` and `docs/ARCHITECTURE.md` as the only planning source of truth
 - Advance phases through the runtime (`bun harness:advance` or the underlying `.harness/*` scripts); do not fake completion
@@ -509,9 +509,12 @@ bun harness:advance                         # Advance to the next phase (runs ga
 bun harness:validate --phase <PHASE>        # Validate a specific phase gate
 bun harness:validate --task T[ID]           # Validate a specific task
 bun harness:validate --milestone M[N]       # Validate a specific milestone
-bun harness:guardian                        # Run guardian scan
+bun harness:guardian                        # Alias for bun harness:validate --guardian
 bun harness:compact                         # Generate context snapshot
-bun .harness/orchestrator.ts                # Dispatch the next agent (status/next also work)
+bun harness:orchestrator                    # Preferred package-script alias for bun .harness/orchestrator.ts
+bun .harness/orchestrator.ts                # Direct orchestrator entry point
+bun .harness/orchestrator.ts --status       # Show orchestrator status
+bun .harness/orchestrator.ts --next         # Output only the next agent/action
 bun .harness/orchestrator.ts --review       # Dispatch Design Reviewer (UI tasks)
 bun .harness/orchestrator.ts --code-review  # Dispatch Code Reviewer (non-UI tasks)
 bun harness:merge-milestone M[N]           # Merge a REVIEW milestone into main, clean up worktree
@@ -522,11 +525,11 @@ bun harness:sync-docs                       # Synchronize managed documentation 
 bun harness:metrics                         # Collect and display metrics summary (all categories)
 bun harness:metrics --category <name>       # Metrics for a single category (throughput/quality/human_attention/harness_health/safety)
 bun harness:entropy-scan                    # Run entropy scan: AI slop, doc staleness, pattern drift, dependency health
-bun harness:autoflow                        # Auto-advance phases and merge REVIEW milestones
+bun harness:autoflow                        # Preferred alias for bun .harness/orchestrator.ts --auto
 bun harness:stage --promote V[N]            # Promote next delivery version to ACTIVE
 bun harness:sync-backlog                    # Sync PRD milestone changes into execution backlog
 bun harness:resume                          # Show current progress, phase, blocked tasks, next steps
-bun harness:init --from-prd                 # Re-initialize state from PRD (migration/recovery)
+bun harness:init:prd                        # Re-initialize state from PRD (migration/recovery)
 bun harness:state                           # Inspect or patch runtime state
 bun harness:learn                           # Record a learning entry to LEARNING.md
 bun harness:api:add                         # Add an API endpoint scaffold

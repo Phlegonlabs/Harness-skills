@@ -110,7 +110,12 @@ function materializeScaffoldArtifacts(state: ProjectState): void {
   write("scripts/harness-local/manifest.json", "{}\n")
 
   for (const file of [
+    "types.ts",
+    "init.ts",
     "advance.ts",
+    "state.ts",
+    "validate.ts",
+    "orchestrator.ts",
     "stage.ts",
     "compact.ts",
     "add-surface.ts",
@@ -119,6 +124,11 @@ function materializeScaffoldArtifacts(state: ProjectState): void {
     "sync-skills.ts",
     "api-add.ts",
     "merge-milestone.ts",
+    "resume.ts",
+    "learn.ts",
+    "metrics.ts",
+    "entropy-scan.ts",
+    "scope-change.ts",
   ]) {
     write(`.harness/${file}`, "export {}\n")
   }
@@ -131,8 +141,17 @@ function materializeScaffoldArtifacts(state: ProjectState): void {
         private: true,
         workspaces: ["apps/*", "packages/*"],
         scripts: {
+          "harness:init": "bun .harness/init.ts",
+          "harness:init:prd": "bun .harness/init.ts --from-prd",
           "harness:advance": "bun .harness/advance.ts",
           "harness:stage": "bun .harness/stage.ts",
+          "harness:state": "bun .harness/state.ts",
+          "harness:env": "bun .harness/validate.ts --env",
+          "harness:validate": "bun .harness/validate.ts",
+          "harness:validate:phase": "bun .harness/validate.ts --phase",
+          "harness:validate:task": "bun .harness/validate.ts --task",
+          "harness:validate:milestone": "bun .harness/validate.ts --milestone",
+          "harness:guardian": "bun .harness/validate.ts --guardian",
           "harness:sync-backlog": "bun .harness/init.ts --sync-from-prd",
           "harness:add-surface": "bun .harness/add-surface.ts",
           "harness:autoflow": "bun .harness/orchestrator.ts --auto",
@@ -141,6 +160,13 @@ function materializeScaffoldArtifacts(state: ProjectState): void {
           "harness:sync-docs": "bun .harness/sync-docs.ts",
           "harness:sync-skills": "bun .harness/sync-skills.ts",
           "harness:api:add": "bun .harness/api-add.ts",
+          "harness:resume": "bun .harness/resume.ts",
+          "harness:learn": "bun .harness/learn.ts",
+          "harness:metrics": "bun .harness/metrics.ts",
+          "harness:entropy-scan": "bun .harness/entropy-scan.ts",
+          "harness:scope-change": "bun .harness/scope-change.ts",
+          "harness:orchestrator": "bun .harness/orchestrator.ts",
+          "harness:orchestrate": "bun .harness/orchestrator.ts",
           "harness:compact": "bun .harness/compact.ts",
           "harness:compact:milestone": "bun .harness/compact.ts --milestone",
           "harness:compact:status": "bun .harness/compact.ts --status",

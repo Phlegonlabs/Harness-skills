@@ -211,7 +211,7 @@ Rules:
 - Never advance two phases in a single response
 - Never skip the user confirmation step
 - If the validation fails, fix the issue first — do not ask to advance
-- During Discovery: each question is its own response turn, not just each phase
+- At Full level during Discovery: each question is its own response turn, not just each phase
 - `bun harness:autoflow` may only auto-advance when the current phase artifacts are already present; if scaffold/runtime outputs are missing, stop and re-dispatch the current phase agent
 
 You may need to manually adapt `package.json` scripts that the gate checks expect (`typecheck`, `format:check`, `build`) to map to equivalent scripts in the existing repo.
@@ -233,7 +233,7 @@ If any check fails, fix it first. Do not advance the phase.
 ### Execution Loop
 
 For every task:
-1. Run `bun .harness/orchestrator.ts` — determines which agent to dispatch
+1. Run `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`) — determines which agent to dispatch
 2. Follow the UI or non-UI routing defined in the Agent Dispatch Matrix above
 3. Run `bun harness:validate --task T[ID]` after implementation
 4. Only continue when the task passes
@@ -242,18 +242,26 @@ For every task:
 
 | Flag | Purpose |
 |------|---------|
+| `--next` | Print only the next agent ID or manual action |
 | `--status` | Show current progress, phase, blocked tasks |
 | `--review` | Dispatch Design Reviewer |
 | `--code-review` | Dispatch Code Reviewer |
+| `--auto` | Run the underlying autoflow loop (prefer `bun harness:autoflow`) |
 | `--parallel` | Enable parallel task dispatch |
 | `--packet-json` | Output agent task packet as JSON |
 
+Generated projects expose `bun harness:orchestrator` and `bun harness:autoflow` as package-script aliases. The direct `.harness/` entrypoints remain the underlying runtime commands.
+
 ```bash
-bun .harness/orchestrator.ts                # Dispatch next agent (default/status/next)
+bun harness:orchestrator                    # Package-script alias for bun .harness/orchestrator.ts
+bun .harness/orchestrator.ts                # Direct orchestrator entry point
+bun .harness/orchestrator.ts --status       # Show current progress, phase, blocked tasks
+bun .harness/orchestrator.ts --next         # Print only the next agent or manual action
 bun .harness/orchestrator.ts --review       # Dispatch Design Reviewer (UI tasks)
 bun .harness/orchestrator.ts --code-review  # Dispatch Code Reviewer (non-UI tasks)
 bun .harness/orchestrator.ts --parallel     # Dispatch eligible tasks in parallel
 bun .harness/orchestrator.ts --packet-json  # Output agent task packet as JSON
+bun harness:autoflow                        # Package-script alias for bun .harness/orchestrator.ts --auto
 bun harness:scope-change --preview          # Preview pending scope changes
 bun harness:scope-change --apply            # Apply confirmed scope changes
 ```
@@ -299,11 +307,11 @@ Harness level (`state.projectInfo.harnessLevel.level`) affects which phases and 
 
 | Phase / Check | Lite | Standard | Full |
 |---------------|------|----------|------|
-| DISCOVERY | Fast Path Bootstrap (2 turns) | Full Q0-Q9 | Full Q0-Q9 |
+| DISCOVERY | Fast Path Bootstrap (2 turns) | Grouped 2-3 questions per turn | Sequential Q0-Q9 |
 | MARKET_RESEARCH | Skipped | Optional (skippable) | Required |
-| TECH_STACK | Inferred from ecosystem | Full negotiation | Full negotiation |
-| PRD_ARCH | Minimal PRD | Full PRD + Architecture | Full PRD + Architecture |
-| SCAFFOLD | Minimal | Full scaffold | Full scaffold + GitBook |
+| TECH_STACK | Inferred from ecosystem | Batch all layers in one turn | Per-layer negotiation |
+| PRD_ARCH | Minimal single-file PRD + Architecture | Full single-file PRD + Architecture | Modular PRD + Architecture |
+| SCAFFOLD | Minimal 5-8 file scaffold | Standard 25-35 file scaffold | Full 60+ file scaffold + GitBook |
 | GitBook docs | Not required | Not required | Required |
 | Dep-cruiser | Not required | Optional | Required |
 | Entropy scan | At milestone merge | At milestone merge | At milestone merge |
@@ -319,23 +327,18 @@ When `harnessLevel.level === "lite"` and `phase === "DISCOVERY"`:
 
 ### Agent Timeout Table
 
-Apply soft time limits per agent type. If an agent exceeds its limit, interrupt and report partial progress:
+Apply soft time limits only to the execution-focused agents that the PRD defines. If one exceeds its limit, interrupt and report partial progress:
 
 | Agent | Soft Timeout |
 |-------|-------------|
-| `project-discovery` | 120s |
-| `market-research` | 180s |
-| `tech-stack-advisor` | 120s |
-| `prd-architect` | 300s |
-| `scaffold-generator` | 300s |
-| `frontend-designer` | 180s |
-| `execution-engine` | 600s |
-| `design-reviewer` | 120s |
-| `code-reviewer` | 120s |
-| `harness-validator` | 120s |
-| `context-compactor` | 120s |
-| `entropy-scanner` | 180s |
-| `fast-path-bootstrap` | 300s |
+| `execution-engine` | 30 min |
+| `frontend-designer` | 15 min |
+| `design-reviewer` | 15 min |
+| `code-reviewer` | 10 min |
+| `harness-validator` | 10 min |
+| `context-compactor` | 5 min |
+
+Interactive planning agents and the milestone-boundary `entropy-scanner` do not have contract-level soft timeouts in the PRD.
 
 ### Guardian Table (G1-G12)
 

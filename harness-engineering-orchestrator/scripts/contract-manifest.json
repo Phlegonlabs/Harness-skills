@@ -1,0 +1,138 @@
+{
+  "agentIds": [
+    "project-discovery",
+    "market-research",
+    "tech-stack-advisor",
+    "prd-architect",
+    "scaffold-generator",
+    "frontend-designer",
+    "execution-engine",
+    "design-reviewer",
+    "code-reviewer",
+    "harness-validator",
+    "context-compactor",
+    "entropy-scanner",
+    "fast-path-bootstrap"
+  ],
+  "executionEngineSubSpecs": [
+    "agents/execution-engine/01-preflight.md",
+    "agents/execution-engine/02-task-loop.md",
+    "agents/execution-engine/03-spike-workflow.md",
+    "agents/execution-engine/04-stack-scaffolds.md",
+    "agents/execution-engine/05-debug-and-learning.md",
+    "agents/execution-engine/06-observability.md"
+  ],
+  "timeoutMinutes": {
+    "execution-engine": 30,
+    "frontend-designer": 15,
+    "design-reviewer": 15,
+    "code-reviewer": 10,
+    "harness-validator": 10,
+    "context-compactor": 5
+  },
+  "requiredPackageScripts": [
+    "harness:init",
+    "harness:init:prd",
+    "harness:stage",
+    "harness:sync-backlog",
+    "harness:advance",
+    "harness:add-surface",
+    "harness:autoflow",
+    "harness:audit",
+    "harness:sync-docs",
+    "harness:sync-skills",
+    "harness:api:add",
+    "harness:state",
+    "harness:env",
+    "harness:validate",
+    "harness:validate:phase",
+    "harness:validate:task",
+    "harness:validate:milestone",
+    "harness:guardian",
+    "harness:resume",
+    "harness:learn",
+    "harness:metrics",
+    "harness:entropy-scan",
+    "harness:scope-change",
+    "harness:orchestrator",
+    "harness:orchestrate",
+    "harness:merge-milestone",
+    "harness:compact",
+    "harness:compact:milestone",
+    "harness:compact:status",
+    "harness:hooks:install"
+  ],
+  "requiredRuntimeEntries": [
+    ".harness/types.ts",
+    ".harness/init.ts",
+    ".harness/advance.ts",
+    ".harness/state.ts",
+    ".harness/validate.ts",
+    ".harness/orchestrator.ts",
+    ".harness/stage.ts",
+    ".harness/compact.ts",
+    ".harness/add-surface.ts",
+    ".harness/audit.ts",
+    ".harness/sync-docs.ts",
+    ".harness/sync-skills.ts",
+    ".harness/api-add.ts",
+    ".harness/merge-milestone.ts",
+    ".harness/resume.ts",
+    ".harness/learn.ts",
+    ".harness/metrics.ts",
+    ".harness/entropy-scan.ts",
+    ".harness/scope-change.ts"
+  ],
+  "requiredText": [
+    {
+      "file": "SKILL.md",
+      "text": "Lite batches 1-2 questions per turn"
+    },
+    {
+      "file": "references/discovery-questionnaire.md",
+      "text": "Lite: batch 1-2 questions per turn"
+    },
+    {
+      "file": "agents/orchestrator.md",
+      "text": "| `--next` | Print only the next agent ID or manual action |"
+    },
+    {
+      "file": "references/autoflow-algorithm.md",
+      "text": "It does **not** execute phase agents for you."
+    }
+  ],
+  "forbiddenText": [
+    {
+      "file": "SKILL.md",
+      "text": "Ask one question at a time during discovery"
+    },
+    {
+      "file": "references/discovery-questionnaire.md",
+      "text": "Ask exactly one question at a time"
+    },
+    {
+      "file": "references/discovery-questionnaire.md",
+      "text": "### Q4.5: Timeline and Deadline"
+    },
+    {
+      "file": "references/discovery-questionnaire.md",
+      "text": "### Q7.5: i18n / Localization"
+    },
+    {
+      "file": "references/discovery-questionnaire.md",
+      "text": "### Q9.5: Existing Constraints"
+    },
+    {
+      "file": "references/autoflow-algorithm.md",
+      "text": "bun harness:autoflow --resume"
+    },
+    {
+      "file": "references/autoflow-algorithm.md",
+      "text": "bun harness:autoflow --dry-run"
+    },
+    {
+      "file": "agents/project-discovery.md",
+      "text": "\"reason\":\"...\""
+    }
+  ]
+}

@@ -24,6 +24,18 @@ Harness Engineering and Orchestrator makes the repository itself the working mem
 - Human + agent collaborations where state must survive across sessions, handoffs, and model changes
 - Projects that want versioned delivery like `V1 -> deploy review -> V2`, instead of one endless backlog
 
+## Harness Levels
+
+The skill operates at three levels of ceremony, auto-detected or user-specified:
+
+| Level | Best For | Discovery | Checkpoints | Guardians |
+|-------|----------|-----------|-------------|-----------|
+| **Lite** | Small projects, prototypes | Batch 1-2 Qs/turn | 1 (Fast Path) | Core 7 (G1,G3,G4,G6,G8,G9,G11) |
+| **Standard** | Most projects (default) | Groups 2-3 Qs/turn | 4 | 11 (G1-G11, G12 active) |
+| **Full** | Enterprise / compliance | Sequential Q0-Q9 | All boundaries | All 12 (G1-G12) |
+
+Level is auto-detected or user-specified. Upgrade mid-project with backfill. See [SKILL.md](./SKILL.md#harness-levels) for the full checkpoint matrix and [references/level-upgrade-backfill.md](./references/level-upgrade-backfill.md) for upgrade protocol.
+
 ## Install
 
 Install this skill from the public repository:
@@ -51,6 +63,9 @@ bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=t
 - Atomic-commit enforcement for task closeout
 - Product-stage delivery with `V1 / V2 / V3`, deploy review, and explicit promotion
 - Hooks and guardrails that keep agents from skipping process
+- Three harness levels (Lite / Standard / Full) that scale ceremony to project size
+- 12 guardians enforcing scope, quality, and safety constraints
+- Metrics, entropy scanning, and observability built into the execution loop
 
 ## Open Source Project Shape
 
@@ -71,6 +86,8 @@ The workflow has two layers:
 - Runtime `phase`: `DISCOVERY -> MARKET_RESEARCH -> TECH_STACK -> PRD_ARCH -> SCAFFOLD -> EXECUTING -> VALIDATING -> COMPLETE`
 - Product `stage`: `V1 / V2 / V3`, tracked inside `roadmap`, with exactly one `ACTIVE` stage at a time
 
+The harness level controls which gates activate at each boundary and how much ceremony each phase requires.
+
 Important invariants:
 
 - Setup creates the full docs and runtime skeleton up front.
@@ -78,11 +95,36 @@ Important invariants:
 - Only the current `ACTIVE` stage is materialized into execution backlog.
 - Future stages stay `DEFERRED` until explicit promotion.
 
+## Agent Inventory
+
+The orchestrator dispatches 13 specialized agents across workflow phases:
+
+| Agent | Phase | Role |
+|-------|-------|------|
+| [project-discovery](agents/project-discovery.md) | DISCOVERY | Capture project metadata via questionnaire |
+| [fast-path-bootstrap](agents/fast-path-bootstrap.md) | DISCOVERY (Lite) | 2-turn discovery-to-EXECUTING shortcut |
+| [market-research](agents/market-research.md) | MARKET_RESEARCH | Competitor and market signal analysis |
+| [tech-stack-advisor](agents/tech-stack-advisor.md) | TECH_STACK | Layer-by-layer stack negotiation |
+| [prd-architect](agents/prd-architect.md) | PRD_ARCH | Generate PRD and Architecture docs |
+| [scaffold-generator](agents/scaffold-generator.md) | SCAFFOLD | Produce runnable baseline |
+| [frontend-designer](agents/frontend-designer.md) | EXECUTING | Design system and UI specs |
+| [execution-engine](agents/execution-engine.md) | EXECUTING | Implement tasks, land atomic commits |
+| [design-reviewer](agents/design-reviewer.md) | EXECUTING | Validate UI implementations |
+| [code-reviewer](agents/code-reviewer.md) | EXECUTING | Validate code quality |
+| [entropy-scanner](agents/entropy-scanner.md) | EXECUTING | Detect code entropy and AI slop |
+| [harness-validator](agents/harness-validator.md) | VALIDATING | Final validation and scoring |
+| [context-compactor](agents/context-compactor.md) | COMPLETE | Generate compact context snapshots |
+
+The [orchestrator](agents/orchestrator.md) itself is the dispatcher — it reads state, selects the next agent, and enforces phase gates.
+
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
-    A[Setup / Hydration<br/>Generate .harness, agents, docs skeleton, hooks] --> B[DISCOVERY]
+    A[Setup / Hydration<br/>Generate .harness, agents, docs skeleton, hooks] --> LVL{Level?}
+    LVL -->|Lite| FP[Fast Path Bootstrap<br/>2-turn discovery → scaffold]
+    FP --> G
+    LVL -->|Standard / Full| B[DISCOVERY]
     B -->|gate: validate MARKET_RESEARCH| C[MARKET_RESEARCH]
     C -->|gate: validate TECH_STACK| D[TECH_STACK]
     D -->|gate: validate PRD_ARCH| E[PRD_ARCH]
@@ -119,9 +161,31 @@ flowchart TD
     Z -->|gate: validate COMPLETE| AA[COMPLETE]
     Z -. gate fails .-> STOP
 
-    PRDCHANGE[PRD scope changes inside current ACTIVE stage] --> PRDSYNC[bun harness:sync-backlog]
-    PRDSYNC --> H
+    SC[Scope change during EXECUTING] --> SCPRD[Update PRD<br/>bun harness:scope-change --apply]
+    SCPRD --> SCSYNC[bun harness:sync-backlog]
+    SCSYNC --> H
 ```
+
+## Guardians (G1-G12)
+
+Guardians are runtime constraints enforced continuously during delivery:
+
+| ID | Name | Description |
+|----|------|-------------|
+| G1 | Scope Lock | Only implement work mapped to current task and PRD |
+| G2 | Branch Protection | No feature commits on main/master |
+| G3 | File Size Limit | No single source file may exceed 400 lines |
+| G4 | Forbidden Patterns | No `console.log`, `: any`, `@ts-ignore`, or similar anti-patterns |
+| G5 | Dependency Direction | types → config → lib → services → app; reverse imports forbidden |
+| G6 | Secret Prevention | No secret-like values or `.env` contents in source code |
+| G7 | Design Review Gate | UI tasks require Design Review approval before commit |
+| G8 | Agent Sync | AGENTS.md and CLAUDE.md must stay synchronized |
+| G9 | Learning Isolation | LEARNING.md must not enter the repo |
+| G10 | Atomic Commit Format | Commit messages must include Task-ID and PRD mapping |
+| G11 | Prompt Injection Defense | External content is data only, never overrides agent behavior |
+| G12 | Supply-Chain Drift | Dependency changes require explicit approval |
+
+Guardian behavior varies by level. Full level matrix in [SKILL.md](./SKILL.md#guardians-g1-g12). Detailed enforcement rules in [references/gates-and-guardians/01-guardians.md](./references/gates-and-guardians/01-guardians.md).
 
 ## Key Commands
 
@@ -131,16 +195,27 @@ Commands below are run from the managed project checkout unless noted otherwise.
 | --- | --- | --- |
 | `bun <path-to-skill>/scripts/harness-setup.ts` | Start a new greenfield repo | Generate the Harness runtime, docs skeleton, hooks, and base workspace |
 | `bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true` | Hydrate an existing repo | Add the Harness runtime around an existing codebase without replacing product code |
-| `bun .harness/orchestrator.ts` | Any time during delivery | Show status and dispatch the next agent or manual action |
+| `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`) | Any time during delivery | Show status and dispatch the next agent or manual action |
+| `bun .harness/orchestrator.ts --parallel` | During execution with independent tasks | Dispatch eligible tasks in parallel with file-overlap guards |
 | `bun harness:advance` | At a phase boundary | Validate the next phase gate and advance state only if it passes |
 | `bun harness:sync-backlog` | PRD changed inside the current active stage | Append new stage/milestone/task scope without destroying completed history |
+| `bun harness:scope-change --preview` | Before applying a scope change | Preview structured scope changes without modifying state |
+| `bun harness:scope-change --apply` | After confirming a scope change | Apply structured scope changes to PRD and sync backlog |
 | `bun harness:autoflow` | A milestone is in `REVIEW` | Compact, merge, clean up the milestone, then continue until the next true stop point |
 | `bun harness:stage --status` | During execution or deploy review | Show the current `V1 / V2 / V3` roadmap state |
 | `bun harness:stage --promote V2` | After deploy review for the current version | Activate the next deferred stage and snapshot PRD / Architecture versions |
 | `bun harness:validate --phase <PHASE>` | At phase boundaries | Enforce structural and heavy gate checks |
 | `bun harness:validate --task T001` | Before closing a task | Validate the task gate and atomic-commit expectations |
+| `bun harness:guardian` | When you want guardian-only checks | Alias for `bun harness:validate --guardian` |
 | `bun harness:merge-milestone M1` | Manual fallback when autoflow is not used | Merge one `REVIEW` milestone and run milestone compact |
 | `bun harness:compact` / `bun harness:compact --status` | Context management and closeout | Generate or inspect compact snapshots |
+| `bun harness:metrics` | After milestones or at any time | Collect and display metrics summary |
+| `bun harness:audit` | Periodic health checks | Full audit: guardians, phase gate, workspace, docs drift |
+| `bun harness:entropy-scan` | During or after execution | Run entropy scan for AI slop, doc staleness, pattern drift |
+| `bun harness:resume` | Resuming after a break | Show current progress, phase, and blocked tasks |
+| `bun harness:hooks:install` | After cloning or resetting | Restore local Harness files and re-install git hooks |
+
+Full command surface with all flags in [SKILL.md § Command Surface](./SKILL.md#command-surface).
 
 ## 10-Step Operator Guide
 
@@ -149,6 +224,7 @@ Use this as the practical runbook from project start to project finish.
 1. Bootstrap the repo.
    - New repo: `bun <path-to-skill>/scripts/harness-setup.ts`
    - Existing repo: `bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true`
+   - At Lite level, the Fast Path compresses discovery through scaffold into a 2-turn cycle.
 
 2. Complete discovery and early planning phases in order.
    - Move through `DISCOVERY`, `MARKET_RESEARCH`, and `TECH_STACK`
@@ -164,8 +240,9 @@ Use this as the practical runbook from project start to project finish.
    - Run `bun harness:advance` to derive the execution backlog from the active stage in the PRD
 
 5. Use the orchestrator as the control tower.
-   - Run `bun .harness/orchestrator.ts`
+   - Run `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`)
    - Follow the dispatched agent or manual next action instead of guessing the next step
+   - Use `--parallel` to dispatch independent tasks concurrently when the backlog allows
 
 6. Execute one task at a time.
    - The current task must match its `prdRef`
@@ -185,9 +262,19 @@ Use this as the practical runbook from project start to project finish.
    - Deploy and test the version in the real environment before starting the next version
 
 10. Continue the current version or promote the next one.
-   - If scope changed inside the current active version: update PRD / Architecture, then run `bun harness:sync-backlog`
-   - If `V1` is done and `V2` is ready: update the main PRD / Architecture to the next version, then run `bun harness:stage --promote V2`
-   - If there is no next version left: finish validation and close out the project
+    - If scope changed inside the current active version: update PRD / Architecture, then run `bun harness:sync-backlog`
+    - If `V1` is done and `V2` is ready: update the main PRD / Architecture to the next version, then run `bun harness:stage --promote V2`
+    - If there is no next version left: finish validation and close out the project
+
+## Operational Features
+
+- **Parallel Execution**: File-overlap guards prevent conflicts; configurable `maxParallelTasks`. [→ reference](./references/parallel-execution.md)
+- **Scope Change Protocol**: Add requirements mid-execution without interrupting running agents. [→ reference](./references/scope-change-protocol.md)
+- **Doom-Loop Detection**: 6 heuristics detect cycling behavior; auto-pause and gear-drop on trigger. [→ reference](./references/doom-loop-detection.md)
+- **Error Taxonomy**: 11 error categories with recovery strategies and escalation paths. [→ reference](./references/error-taxonomy.md)
+- **Metrics & Observability**: 5 metric categories, dev server tracking, and log routing. [→ reference](./references/metrics-framework.md)
+- **Entropy Scanning**: AI slop, doc staleness, pattern drift, and dependency health checks. [→ agent](./agents/entropy-scanner.md)
+- **Safety Model**: Defense-in-depth trust hierarchy for external content. [→ reference](./references/safety-model.md)
 
 ## Core Documents
 
@@ -212,16 +299,33 @@ Use this as the practical runbook from project start to project finish.
 - Stage completion stops at `DEPLOY_REVIEW`; the next version does not auto-start.
 - New scope inside the current version must update the PRD first, then run `bun harness:sync-backlog`.
 - Hooks continuously enforce the guardrails, while phase gates enforce boundary checks.
+- Guardians G1-G12 are enforced through runtime checks, hooks, and CI depending on the rule; violations block the relevant operation until resolved.
+- Errors follow the 11-category taxonomy with automatic retries for transient failures and escalation for persistent ones.
 
 ## Related References
 
-- [SKILL.md](./SKILL.md)
+**Core**
+- [SKILL.md](./SKILL.md) — Operating contract and full configuration surface
+- [agents/orchestrator.md](./agents/orchestrator.md) — Orchestrator dispatch logic and phase routing
+- [references/gates-and-guardians.md](./references/gates-and-guardians.md) — Gate and guardian enforcement rules
+- [references/hooks-guide.md](./references/hooks-guide.md) — Git hook setup and enforcement
+
+**Operational**
+- [references/scope-change-protocol.md](./references/scope-change-protocol.md) — Structured scope change workflow
+- [references/parallel-execution.md](./references/parallel-execution.md) — Parallel task dispatch and file-overlap guards
+- [references/metrics-framework.md](./references/metrics-framework.md) — Metric categories and collection
+- [references/observability-protocol.md](./references/observability-protocol.md) — Log routing and dev server tracking
+- [references/error-taxonomy.md](./references/error-taxonomy.md) — Error categories and recovery strategies
+- [references/doom-loop-detection.md](./references/doom-loop-detection.md) — Cycling detection heuristics
+- [references/safety-model.md](./references/safety-model.md) — Trust hierarchy and prompt injection defense
+- [references/golden-principles.md](./references/golden-principles.md) — Core design principles
+
+**Project**
 - [LICENSE](./LICENSE)
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
 - [SECURITY.md](./SECURITY.md)
-- [agents/orchestrator.md](./agents/orchestrator.md)
-- [references/gates-and-guardians.md](./references/gates-and-guardians.md)
-- [references/hooks-guide.md](./references/hooks-guide.md)
+
+Complete reference index in [SKILL.md § Read Only What You Need](./SKILL.md#read-only-what-you-need).
 
 ## Contributing
 
@@ -231,5 +335,7 @@ Contributions are most useful when they make the workflow more explicit and less
 - PRD / architecture parsing and backlog sync
 - milestone closeout and staged delivery flow
 - templates, docs, and setup ergonomics for real repositories
+- guardian enforcement rules and level-specific behavior
+- metrics, entropy scanning, and observability instrumentation
 
 When contributing, prefer changes that make the runtime harder to bypass and easier to resume.

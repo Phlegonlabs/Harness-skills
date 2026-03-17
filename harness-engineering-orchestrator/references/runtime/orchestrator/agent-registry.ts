@@ -7,7 +7,7 @@ export interface AgentEntry {
   name: string
   specPath: string
   subSpecs?: string[]
-  /** Soft time limit in milliseconds. Rendered as an instruction constraint in the task packet. */
+  /** Soft time limit in milliseconds for agents with PRD-defined timeout contracts. */
   timeoutMs?: number
 }
 
@@ -16,31 +16,26 @@ const AGENT_ENTRIES: AgentEntry[] = [
     id: "project-discovery",
     name: "Project Discovery Agent",
     specPath: "agents/project-discovery.md",
-    timeoutMs: 10 * 60_000, // 10 min
   },
   {
     id: "market-research",
     name: "Market Research Agent",
     specPath: "agents/market-research.md",
-    timeoutMs: 15 * 60_000, // 15 min
   },
   {
     id: "tech-stack-advisor",
     name: "Tech Stack Advisor Agent",
     specPath: "agents/tech-stack-advisor.md",
-    timeoutMs: 10 * 60_000, // 10 min
   },
   {
     id: "prd-architect",
     name: "PRD Architect Agent",
     specPath: "agents/prd-architect.md",
-    timeoutMs: 20 * 60_000, // 20 min
   },
   {
     id: "scaffold-generator",
     name: "Scaffold Generator Agent",
     specPath: "agents/scaffold-generator.md",
-    timeoutMs: 15 * 60_000, // 15 min
   },
   {
     id: "frontend-designer",
@@ -66,7 +61,7 @@ const AGENT_ENTRIES: AgentEntry[] = [
     id: "design-reviewer",
     name: "Design Reviewer Agent",
     specPath: "agents/design-reviewer.md",
-    timeoutMs: 10 * 60_000, // 10 min
+    timeoutMs: 15 * 60_000, // 15 min
   },
   {
     id: "code-reviewer",
@@ -84,19 +79,17 @@ const AGENT_ENTRIES: AgentEntry[] = [
     id: "context-compactor",
     name: "Context Compactor Agent",
     specPath: "agents/context-compactor.md",
-    timeoutMs: 10 * 60_000, // 10 min
+    timeoutMs: 5 * 60_000, // 5 min
   },
   {
     id: "entropy-scanner",
     name: "Entropy Scanner Agent",
     specPath: "agents/entropy-scanner.md",
-    timeoutMs: 5 * 60_000, // 5 min
   },
   {
     id: "fast-path-bootstrap",
     name: "Fast Path Bootstrap Agent",
     specPath: "agents/fast-path-bootstrap.md",
-    timeoutMs: 20 * 60_000, // 20 min
   },
 ]
 

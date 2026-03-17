@@ -29,7 +29,7 @@ If the user does not specify, auto-detect based on signals:
 - Team project or complex domain -> suggest Standard
 - Enterprise, regulated, or multi-surface -> suggest Full
 
-Persist the selection with `bun .harness/state.ts --patch='{"projectInfo":{"harnessLevel":{"level":"...","reason":"..."}}}'`.
+Persist the selection with `bun .harness/state.ts --patch='{"projectInfo":{"harnessLevel":{"level":"standard","autoDetected":false,"detectedAt":"<ISO-8601>"}}}'`.
 
 If the user selects Lite, hand off to the `fast-path-bootstrap` agent immediately.
 
@@ -61,6 +61,7 @@ Follow [references/discovery-questionnaire.md](../references/discovery-questionn
 This agent sets the following fields in `.harness/state.json`:
 
 - `projectInfo.name`
+- `projectInfo.displayName`
 - `projectInfo.concept`
 - `projectInfo.problem`
 - `projectInfo.goal`
@@ -68,6 +69,7 @@ This agent sets the following fields in `.harness/state.json`:
 - `projectInfo.aiProvider`
 - `projectInfo.teamSize`
 - `projectInfo.designStyle`
+- `projectInfo.designReference`
 - `projectInfo.isGreenfield`
 - `projectInfo.harnessLevel`
 
@@ -87,11 +89,16 @@ This agent sets the following fields in `.harness/state.json`:
 ## Done-When
 
 - `projectInfo.name` is set
+- `projectInfo.displayName` is set
+- `projectInfo.concept` is set
+- `projectInfo.problem` is set
+- `projectInfo.goal` is set
 - `projectInfo.types.length > 0`
-- `teamSize` is set
-- `isGreenfield` is set
-- `designStyle` is set for UI projects
-- `harnessLevel` is set
+- `projectInfo.aiProvider` is set
+- `projectInfo.teamSize` is set
+- `projectInfo.isGreenfield` is set
+- `projectInfo.designStyle` is set for UI projects
+- `projectInfo.harnessLevel` is set
 - `bun harness:validate --phase MARKET_RESEARCH` passes
 - The next safe step is `bun harness:advance`
 

@@ -4,13 +4,28 @@ Use this file only during **Phase 0: Discovery**.
 
 ## Rules
 
-- Ask exactly one question at a time
-- Wait for the user's answer before asking the next question
+- Use level-aware pacing:
+  - Lite: batch 1-2 questions per turn, then hand off to `fast-path-bootstrap`
+  - Standard: group 2-3 related questions per turn
+  - Full: ask one question per response turn
+- Wait for the user's answer before asking the next question or batch
 - Persist each answer immediately into the runtime state
 - Do not invent fields outside the schema
 - Skip questions that are irrelevant to the chosen project type
 
 ## Question Sequence
+
+### Q-1: Harness Level
+
+```text
+Which Harness level should this project use?
+
+1. Lite — minimal overhead, fast bootstrap
+2. Standard — balanced default
+3. Full — comprehensive, checkpoint-heavy
+```
+
+If the user does not specify, auto-detect from project scope, team size, and compliance signals before continuing.
 
 ### Q0: Starting Point
 
@@ -51,13 +66,7 @@ What problem does this project solve, and who is it for?
 
 ```text
 What do you want this project to achieve within the target time frame?
-Are there specific success metrics?
-```
-
-### Q4.5: Timeline and Deadline
-
-```text
-What is the target delivery timeline? Does this affect MVP scope?
+What is the target delivery timeline, and are there specific success metrics?
 ```
 
 ### Q5: Project Type
@@ -117,11 +126,7 @@ Which feature modules does this project need?
 Select all that apply, or say "none of the above".
 ```
 
-### Q7.5: i18n / Localization
-
-```text
-Does the app need multi-language support? Which languages/locales?
-```
+Treat localization or i18n as part of this question when it is relevant to the chosen surface instead of introducing a separate numbered question.
 
 ### Q8: Team Size
 
@@ -151,21 +156,9 @@ You can choose one or more, or describe a reference product.
 6. Custom / reference-driven
 ```
 
-Follow up with:
+Capture any design references as part of the same question so the frontend design work can align with the PRD and stack decisions.
 
-```text
-Are there any websites or apps you want to use as design references?
-```
-
-Record this so the frontend design work can align with the PRD and stack decisions.
-
-### Q9.5: Existing Constraints
-
-Ask this only for existing codebases.
-
-```text
-For existing codebases: which APIs/databases/services must be integrated?
-```
+For existing codebases, capture required integrations or immovable external constraints as follow-up notes under Q0 or Q5 instead of inventing extra numbered questions.
 
 ## Discovery Exit Criteria
 
