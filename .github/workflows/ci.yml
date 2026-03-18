@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: harness-engineering-orchestrator
+
+      - name: Run tests
+        run: bun test harness-engineering-orchestrator
+
+      - name: Run skill contract check
+        run: node harness-engineering-orchestrator/scripts/check-skill-contract.mjs

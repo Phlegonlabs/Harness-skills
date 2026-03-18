@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Phlegonlabs/Harness-Engineering-skills/main/harness-engineering-orchestrator/config.schema.json",
+
+  "defaults": {
+    "harnessLevel": "standard",
+    "teamSize": "small",
+    "ecosystem": "bun",
+    "aiProvider": "anthropic",
+    "designStyle": "clean-minimal",
+    "visibility": "private",
+    "skipGithub": false
+  },
+
+  "guardianOverrides": {
+    "disabled": [],
+    "warnOnly": ["G10"]
+  },
+
+  "phaseSkips": {
+    "skipMarketResearch": false
+  },
+
+  "org": {
+    "name": "your-org",
+    "defaultUser": "Operator"
+  }
+}

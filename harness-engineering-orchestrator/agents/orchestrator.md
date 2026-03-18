@@ -16,6 +16,8 @@ Always active while this skill is in use. The Orchestrator is the entry point; i
 - Current phase, product stage, milestone, task, and worktree state
 - Harness level in `state.projectInfo.harnessLevel.level`
 
+> **config.json**: If a `config.json` file exists in the skill directory, it is read once during `harness-setup.ts` and its defaults are merged into the setup context. After setup, `state.json` is the canonical source of truth — do not re-read `config.json` at runtime. See [SKILL.md — Team Configuration](../SKILL.md#team-configuration).
+
 ## Tasks
 
 ### Treat Runtime State as Canonical

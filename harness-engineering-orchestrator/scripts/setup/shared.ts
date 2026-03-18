@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import type {
   AIProvider,
   DesignStyle,
+  HarnessSkillConfig,
   ProjectState,
   ProjectType,
   TeamSize,
@@ -170,6 +171,10 @@ function readJsonIfExists<T>(path: string): T | null {
   } catch {
     return null
   }
+}
+
+export function loadSkillConfig(skillRoot: string): HarnessSkillConfig | null {
+  return readJsonIfExists<HarnessSkillConfig>(join(skillRoot, "config.json"))
 }
 
 function readFirstExisting(paths: string[]): string {
@@ -365,7 +370,10 @@ function workspaceAppsFor(types: ProjectType[]): string[] {
   )
 }
 
-export function createContext(args: Record<string, string>): Context {
+export function createContext(args: Record<string, string>, skillRoot?: string): Context {
+  const cfg = skillRoot ? loadSkillConfig(skillRoot) : null
+  const d = cfg?.defaults ?? {}
+
   const projectTypes = parseProjectTypes(args)
   const projectType = primaryProjectType(projectTypes)
   const projectName = detectProjectName(args)
@@ -384,16 +392,16 @@ export function createContext(args: Record<string, string>): Context {
     "Build a sustainable and verifiable project scaffold",
   )
   const aiProvider = parseEnumValue<AIProvider>(
-    args.aiProvider,
+    args.aiProvider ?? d.aiProvider,
     ["openai", "anthropic", "both", "vercel-ai-sdk", "google", "open-source", "multi", "none"],
     "none",
   )
-  const teamSize = parseEnumValue<TeamSize>(args.teamSize, ["solo", "small", "large"], "solo")
+  const teamSize = parseEnumValue<TeamSize>(args.teamSize ?? d.teamSize, ["solo", "small", "large"], "solo")
   const isGreenfield = parseBooleanFlag(args.isGreenfield, true)
   const isUiProject = projectTypes.some(type => ["web-app", "ios-app", "android-app", "mobile-cross-platform", "desktop"].includes(type))
   const designStyle = isUiProject
     ? parseEnumValue<DesignStyle>(
-        args.designStyle,
+        args.designStyle ?? d.designStyle,
         ["dark-modern", "clean-minimal", "bold-expressive", "professional", "soft-friendly", "custom"],
         "professional",
       )
@@ -434,8 +442,8 @@ export function createContext(args: Record<string, string>): Context {
     designStyle,
     designStyleLabel: designStyle ? DESIGN_STYLE_LABELS[designStyle] : "N/A",
     designReference,
-    userName: args.user ?? "Operator",
-    org: args.org ?? "your-org",
+    userName: args.user ?? cfg?.org?.defaultUser ?? "Operator",
+    org: args.org ?? cfg?.org?.name ?? "your-org",
     repo: args.repo ?? projectName,
     projectUrl: args.projectUrl ?? `${projectName}.example.com`,
     gitbookUrl: args.gitbookUrl ?? `docs.${projectName}.example.com`,
@@ -443,8 +451,8 @@ export function createContext(args: Record<string, string>): Context {
     nowIso: new Date().toISOString(),
     year: new Date().getFullYear().toString(),
     isUiProject,
-    visibility: (args.visibility ?? "private") as "public" | "private",
-    skipGithub: args.skipGithub === "true",
+    visibility: (args.visibility ?? d.visibility ?? "private") as "public" | "private",
+    skipGithub: args.skipGithub !== undefined ? args.skipGithub === "true" : (d.skipGithub ?? false),
     githubRepo: args.githubRepo ?? "",
     existingRepoSummary: existingRepoSummary(projectDisplayName, isGreenfield),
     existingDependencySummary: dependencySummary,

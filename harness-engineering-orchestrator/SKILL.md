@@ -31,6 +31,38 @@ The skill operates at three levels of ceremony, auto-detected or user-specified:
 
 The level is stored in `state.projectInfo.harnessLevel` and can be upgraded mid-project. See [references/level-upgrade-backfill.md](./references/level-upgrade-backfill.md) for the backfill protocol when upgrading.
 
+## Team Configuration
+
+Teams can pre-set project defaults by placing a `config.json` in the installed skill directory (next to `SKILL.md`). Copy `config.example.json` to `config.json` and edit the values:
+
+```bash
+cp config.example.json config.json
+```
+
+**Supported fields** (all optional):
+
+| Field | Default | Description |
+|---|---|---|
+| `defaults.harnessLevel` | auto-detect | Starting harness level (`lite`, `standard`, `full`) |
+| `defaults.teamSize` | `solo` | Team size (`solo`, `small`, `large`) |
+| `defaults.ecosystem` | auto-detect | Toolchain ecosystem (e.g. `bun`, `python`, `go`) |
+| `defaults.aiProvider` | `none` | AI provider (`openai`, `anthropic`, `both`, etc.) |
+| `defaults.designStyle` | `professional` | UI design style for UI projects |
+| `defaults.visibility` | `private` | Repository visibility (`public`, `private`) |
+| `defaults.skipGithub` | `false` | Skip GitHub repo creation |
+| `guardianOverrides.warnOnly` | `[]` | Guardian IDs to downgrade from block to warn |
+| `phaseSkips.skipMarketResearch` | `false` | Skip Market Research phase |
+| `org.name` | `your-org` | Default GitHub organization |
+| `org.defaultUser` | `Operator` | Default user name in generated artifacts |
+
+**Precedence chain** (highest → lowest):
+
+```
+CLI flags  →  config.json defaults  →  interactive discovery  →  state.json (canonical)
+```
+
+If `config.json` is absent or unparseable, behavior is identical to a fresh install with no config. See [config.example.json](./config.example.json) for a fully annotated template.
+
 ## Overview
 
 Harness Engineering and Orchestrator is an orchestration skill, not just a repo generator.
@@ -41,6 +73,16 @@ Its job is to turn an idea or an existing codebase into a controlled delivery lo
 3. a milestone and task plan in `docs/PROGRESS.md`
 4. a runnable scaffold with Harness runtime files
 5. validated implementation until the project reaches `COMPLETE`
+
+### Changes in v1.8.0
+
+- Added consolidated `## Gotchas` section with 10 high-signal failure modes and cross-reference links
+- Added `## Team Configuration` section and `config.example.json` — teams can pre-set defaults via `config.json` in the skill directory; absent config is a no-op
+- Added `HarnessSkillConfig` interface to `harness-types.ts` and `loadSkillConfig()` to `shared.ts`; `createContext()` merges config defaults with full CLI/discovery override
+- Added `AGENTS.md` and `CLAUDE.md` at repo root for contributor-facing agent instructions
+- Added `.github/workflows/ci.yml` — PR validation runs `bun test` and the skill contract checker on every push/PR to `main`
+- Added `SKILLS.md` catalog index and `docs/new-skill-guide.md` for new skill contributors
+- Added `harness-engineering-orchestrator-prd/README.md` clarifying the directory is internal design docs, not an installable skill
 
 ### Changes in v1.7.0
 
@@ -405,6 +447,40 @@ File-overlap guards prevent unsafe co-dispatching. For UI work, preserve `fronte
 - Error categories and recovery strategies: [references/error-taxonomy.md](./references/error-taxonomy.md)
 
 See [agents/orchestrator.md](./agents/orchestrator.md) for escalation details.
+
+## Gotchas
+
+These are the most common failure modes encountered in production. Each one has burned at least one team; read them before you start.
+
+**1. Autoflow stops silently when phase outputs are missing on disk.**
+Autoflow advances phases by reading output artifacts (PRD, ARCHITECTURE, PROGRESS). If those files are absent or empty — for example because the previous phase was aborted mid-write — the phase loop stalls without an explicit error. Always verify artifact files exist and are non-empty before resuming. See [references/autoflow-algorithm.md](./references/autoflow-algorithm.md).
+
+**2. `state.json` corruption from interrupted writes auto-recovers from `.backup`, but if both are corrupt you need git recovery.**
+The state writer uses atomic rename with a `.backup` copy. A single crash is safe. If the process is killed twice in the same write window, both copies may be incomplete — at that point run `git checkout .harness/state.json` to restore from the last commit. See [references/state-recovery.md](./references/state-recovery.md).
+
+**3. Doom loop: the same file edited 5+ times without a commit triggers auto-pause (H1 heuristic).**
+The doom-loop detector counts edits per file per task cycle. Five edits without a commit signals a stuck agent and pauses execution. If you legitimately need many iterations on one file, commit intermediate progress. See [references/doom-loop-detection.md](./references/doom-loop-detection.md).
+
+**4. Hooks G2 and G5 block commits before the EXECUTING phase — early blocks are misconfiguration, not violations.**
+The Branch Protection (G2) and Dependency Direction (G5) hooks are phase-gated: they only activate at EXECUTING. If they fire during SCAFFOLD or earlier, the hook installation is incorrect. Do not disable them — fix the `activeFrom` phase configuration. See [references/hooks-guide.md](./references/hooks-guide.md).
+
+**5. Scope changes during EXECUTING bypass PRD scope lock if you skip `bun harness:scope-change`.**
+G1 (Scope Lock) enforces PRD scope at the task level. Directly editing the PRD mid-execution without going through the scope-change command leaves state.json out of sync with the document. Always use the scope-change protocol — it updates PRD, PROGRESS, and state atomically. See [references/scope-change-protocol.md](./references/scope-change-protocol.md).
+
+**6. Ecosystem detection defaults to Bun for greenfield projects — non-TypeScript projects need an explicit `--type` flag.**
+The setup script auto-detects project type from directory structure and `package.json`. For projects without a manifest at setup time (Python, Go, Rust, etc.) the detector falls back to `bun`. Pass `--type=python` (or the relevant ecosystem) to prevent scaffold files from being generated for the wrong toolchain. See [scripts/setup/core.ts](./scripts/setup/core.ts) and [references/setup-internals.md](./references/setup-internals.md).
+
+**7. Merge conflicts are never auto-resolved — the system always escalates to the user.**
+When a merge conflict is detected, execution pauses, the conflicted task is marked BLOCKED, and no automatic resolution is attempted. Resolve conflicts manually, then resume with `bun harness:resume`. See [references/error-taxonomy.md](./references/error-taxonomy.md).
+
+**8. The 3-retry limit is hard — after 3 consecutive failures the task blocks with no override.**
+Each task gets exactly 3 retries. There is no runtime flag to raise this limit. After 3 failures the task is marked BLOCKED and must be manually inspected and resumed or replaced. If you need more retries, fix the underlying failure. See [references/error-taxonomy.md](./references/error-taxonomy.md) and [agents/execution-engine/02-task-loop.md](./agents/execution-engine/02-task-loop.md).
+
+**9. Parallel tasks with overlapping `affectedFiles` are rejected by the file-overlap guard before they start.**
+The parallel execution scheduler compares `affectedFiles` across all concurrently scheduled tasks. Any overlap causes the second task to be queued rather than run in parallel. This is intentional — do not bypass it by clearing `affectedFiles`. See [references/parallel-execution.md](./references/parallel-execution.md).
+
+**10. Fast Path (Lite) skips Market Research entirely — it is not deferred, it is permanently skipped for that run.**
+When harnessLevel is `lite`, the MARKET_RESEARCH phase is removed from the phase sequence at setup time. Upgrading to `standard` mid-project does not retroactively run market research; it only activates the remaining lite-skipped guardians. See [agents/fast-path-bootstrap.md](./agents/fast-path-bootstrap.md).
 
 ### Progress Reporting
 

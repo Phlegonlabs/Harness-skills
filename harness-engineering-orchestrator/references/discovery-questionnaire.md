@@ -2,6 +2,10 @@
 
 Use this file only during **Phase 0: Discovery**.
 
+## Team Configuration Defaults
+
+If a `config.json` file exists in the skill directory, its `defaults` block pre-fills several discovery answers. When a config default is present, surface it as a suggested answer (e.g. "Suggested: `standard` — change?") rather than leaving the field blank. CLI flags always override config defaults; user answers during discovery override both. See [SKILL.md — Team Configuration](../SKILL.md#team-configuration) for the full precedence chain.
+
 ## Rules
 
 - Use level-aware pacing:

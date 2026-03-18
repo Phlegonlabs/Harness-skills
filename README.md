@@ -80,6 +80,7 @@ The repository is intentionally shaped to support multiple domain skill packages
   - `references/`: templates and helper docs.
   - `scripts/`: optional automation helpers.
   - `templates/`: scaffold files and example structure.
+- `harness-engineering-orchestrator-prd/`: internal PRD and design documentation used during skill development. Not an installable skill.
 
 ## Language
 

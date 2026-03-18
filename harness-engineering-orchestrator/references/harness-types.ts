@@ -704,3 +704,32 @@ export interface AgentTaskPacket {
   validationCommand: string
   worktree?: string
 }
+
+// ── Skill-Level Team Configuration ───────────────────────────────────────────
+
+export interface HarnessSkillConfigDefaults {
+  harnessLevel?: HarnessLevel
+  teamSize?: TeamSize
+  ecosystem?: SupportedEcosystem
+  aiProvider?: AIProvider
+  designStyle?: DesignStyle
+  visibility?: "public" | "private"
+  skipGithub?: boolean
+}
+
+export interface HarnessSkillConfigGuardianOverrides {
+  disabled?: GuardianId[]
+  warnOnly?: GuardianId[]
+}
+
+export interface HarnessSkillConfig {
+  defaults?: HarnessSkillConfigDefaults
+  guardianOverrides?: HarnessSkillConfigGuardianOverrides
+  phaseSkips?: {
+    skipMarketResearch?: boolean
+  }
+  org?: {
+    name?: string
+    defaultUser?: string
+  }
+}
