@@ -20,7 +20,9 @@
 
 ```bash
 [INSTALL_COMMAND]
+bun harness:orchestrator
 bun harness:orchestrate
+bun harness:orchestrate --json
 bun harness:advance
 bun harness:stage --status
 bun harness:sync-backlog
@@ -29,6 +31,8 @@ bun .harness/state.ts --show
 bun harness:env
 bun harness:validate --phase EXECUTING
 ```
+
+Use `bun .harness/orchestrator.ts` when you want a read-only preview of the next agent or task packet. Use `bun harness:orchestrate` when the parent runtime should consume a real launch cycle from `.harness/launches/latest.json`.
 
 Harness Engineering and Orchestrator organizes requirements, architecture, progress, and validation into modular documents:
 
@@ -40,8 +44,8 @@ Harness Engineering and Orchestrator organizes requirements, architecture, progr
 
 Runtime auto-dispatch currently covers `project-discovery`, `MARKET_RESEARCH`, `TECH_STACK`, `prd-architect`, `scaffold-generator`, the UI design loop, `EXECUTING`, `VALIDATING`, and `context-compactor`.
 After an interactive phase is complete, advance the lifecycle with `bun harness:advance`.
-`bun harness:autoflow` advances only after the current phase's required outputs exist; if scaffold artifacts are missing, it stops and surfaces the missing phase work instead of skipping ahead. During `EXECUTING`, it auto-compacts and merges `REVIEW` milestones. When the current delivery version is fully merged, it stops at a deploy review gate instead of auto-starting the next version.
-If product scope changes inside the current delivery version, update the PRD first and run `bun harness:sync-backlog`.
+`bun harness:autoflow` advances only after the current phase's required outputs exist; if scaffold artifacts are missing, it stops and surfaces the missing phase work instead of skipping ahead. During `EXECUTING`, it auto-compacts and merges `REVIEW` milestones. At `COMPLETE`, it writes a final compact snapshot before surfacing context health. When the current delivery version is fully merged, it stops at a deploy review gate instead of auto-starting the next version.
+If product scope changes inside the current delivery version, update the PRD first and run `bun harness:sync-backlog`, or use `bun harness:scope-change --apply` to apply + sync in one step.
 If the next delivery version is ready after deploy / real-world review, update PRD / Architecture and run `bun harness:stage --promote V[N]`.
 
 ## License

@@ -94,7 +94,7 @@ function platformConstraints(platform: AgentPlatform): string[] {
 function executionConstraints(task?: Task): string[] {
   const constraints = [
     "Implement only work that maps to the current task and PRD reference [G1].",
-    "If the user asks for new scope outside the current task / PRD reference, stop implementation, update PRD first, then run bun harness:sync-backlog before coding.",
+    "If the user asks for new scope outside the current task / PRD reference, stop implementation, update PRD first, then use bun harness:scope-change --apply or run bun harness:sync-backlog before coding.",
     "Do not land feature work directly on main/master [G2].",
     "Create exactly one Atomic Commit per task with Task-ID and PRD mapping [G10].",
     "After task completion, synchronize .harness/state.json and docs/PROGRESS.md.",
@@ -229,6 +229,9 @@ function packetRefsFor(
         requiredRefs: existingRefs(base),
         optionalRefs: existingRefs(progressRefs()),
       }
+
+    default:
+      return { optionalRefs: [], requiredRefs: [] }
   }
 }
 

@@ -1,3 +1,4 @@
+import { existsSync } from "fs"
 import type { ActiveAgent, HarnessLevel, Milestone, MilestoneChecklist, MilestoneStatus, Phase, ProductStageStatus, ProjectState, Task, TaskChecklist } from "../types"
 import { formatAtomicCommitFailure, inspectAtomicTaskCommit } from "./atomic-commit"
 import { recordMetric, collectThroughputMetrics, collectQualityMetrics, collectHarnessHealthMetrics } from "./metrics"
@@ -54,7 +55,7 @@ function clearExecutionPointers(state: ProjectState): void {
   state.execution.currentWorktree = ""
 }
 
-function syncExecutionPointersFromActiveAgents(state: ProjectState): void {
+export function syncExecutionPointersFromActiveAgents(state: ProjectState): void {
   const activeAgents = (state.execution.activeAgents ?? []).filter(
     agent => agent.status !== "completed" && agent.status !== "closing",
   )
@@ -68,6 +69,21 @@ function syncExecutionPointersFromActiveAgents(state: ProjectState): void {
   state.execution.currentMilestone = first.milestoneId
   state.execution.currentTask = first.taskId
   state.execution.currentWorktree = first.worktreePath
+}
+
+function runTaskAutoCompact(): void {
+  if (!existsSync(".harness/compact.ts")) return
+
+  const proc = Bun.spawnSync(["bun", ".harness/compact.ts"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  if (proc.exitCode === 0) return
+
+  const stdout = new TextDecoder().decode(proc.stdout).trim()
+  const stderr = new TextDecoder().decode(proc.stderr).trim()
+  const detail = stderr || stdout || "unknown compact failure"
+  console.warn(`⚠️  Auto compact failed after task completion: ${detail}`)
 }
 
 function deregisterActiveAgentsForTask(state: ProjectState, taskId: string): void {
@@ -205,7 +221,7 @@ function recordReviewReadyTransitions(
   return state
 }
 
-function refreshMilestoneStatuses(state: ProjectState): void {
+export function refreshMilestoneStatuses(state: ProjectState): void {
   for (const milestone of state.execution.milestones) {
     const allFinished = milestone.tasks.every(
       task => task.status === "DONE" || task.status === "SKIPPED",
@@ -331,6 +347,7 @@ export function completeTask(taskId: string, commitHash: string): ProjectState {
   }
 
   const updated = writeState(state)
+  runTaskAutoCompact()
   console.log(`✅ Task ${taskId} marked DONE (commit: ${atomicCommit.commitHash})`)
   return updated
 }

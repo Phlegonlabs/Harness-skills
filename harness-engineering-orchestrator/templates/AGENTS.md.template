@@ -23,7 +23,7 @@ Use this file as a startup and compatibility index. Orchestrator-dispatched task
 2. **First principles** — solve the actual problem; do not preserve weak compatibility layers by default
 3. **The PRD is the source of truth** — every feature must map back to `docs/prd/`
 4. **Atomic commits** — each task must land as one independently verifiable commit
-5. **New scope returns to planning first** — if the user adds requirements outside the current task, update PRD / milestone planning first, then run `bun harness:sync-backlog`
+5. **New scope returns to planning first** — if the user adds requirements outside the current task, update PRD / milestone planning first; manual edits require `bun harness:sync-backlog`, while `bun harness:scope-change --apply` queues, applies, and syncs automatically
 6. **Delivery versions are explicit** — `V1` / `V2` / `V3` are product stages, not runtime phases. Future stages may be documented early, but they stay deferred until the current version is merged, compacted, deploy-tested, and manually promoted.
 
 Full principles: `docs/ai/01-operating-principles.md`
@@ -48,7 +48,7 @@ Full principles: `docs/ai/01-operating-principles.md`
 
 Runtime auto-dispatch currently covers: `project-discovery`, `MARKET_RESEARCH`, `TECH_STACK`, `prd-architect`, `scaffold-generator`, `frontend-designer`, `execution-engine`, `code-reviewer`, `design-reviewer`, `harness-validator`, and `context-compactor`.
 After an interactive phase is complete, advance with `bun harness:advance`; keep `state.ts` for low-level mutation or tests.
-`bun harness:autoflow` only advances across phases whose required outputs already exist. If scaffold/runtime artifacts are missing, it stops and re-dispatches the current phase agent instead of skipping ahead. During `EXECUTING`, it also auto-compacts and merges `REVIEW` milestones from the main worktree. When the current delivery version is fully merged, it stops at deploy review instead of auto-starting the next version.
+`bun harness:autoflow` only advances across phases whose required outputs already exist. If scaffold/runtime artifacts are missing, it stops and re-dispatches the current phase agent instead of skipping ahead. During `EXECUTING`, it also auto-compacts and merges `REVIEW` milestones from the main worktree. At `COMPLETE`, it writes a final compact snapshot before reporting context health. When the current delivery version is fully merged, it stops at deploy review instead of auto-starting the next version.
 Do not install product frameworks such as Next.js or Tauri during scaffold setup. Add them only inside milestone tasks.
 `.env.local` is generated as a local-only skeleton and should be filled incrementally as integrations are introduced.
 
@@ -146,7 +146,7 @@ After each task is completed, run `bun harness:compact` to generate `docs/progre
 Milestone closeout now auto-runs milestone compact during `bun harness:merge-milestone` / `bun harness:autoflow`, then `/clear` is recommended.
 Task agents should prefer `.harness/state.json`, `docs/PROGRESS.md`, and `docs/progress/CONTEXT_SNAPSHOT.md` over scanning `docs/progress/`.
 
-If the user introduces new feature scope that is not represented by the current task's `prdRef`, do not implement it directly. First update `docs/PRD.md` / `docs/prd/`, then run `bun harness:sync-backlog`, then resume execution from the new milestone/task.
+If the user introduces new feature scope that is not represented by the current task's `prdRef`, do not implement it directly. First update `docs/PRD.md` / `docs/prd/`, then run `bun harness:sync-backlog` or `bun harness:scope-change --apply`, then resume execution from the new milestone/task.
 If the request belongs to a future delivery version (`V2+`), keep it deferred. Finish the current version, run deploy / real-world validation, then promote the next version with `bun harness:stage --promote V[N]`.
 
 Full details: `docs/ai/06-context-health.md`
@@ -158,7 +158,11 @@ Full details: `docs/ai/06-context-health.md`
 ```bash
 bun harness:advance
 bun harness:orchestrate
+bun harness:orchestrate --json
 bun harness:orchestrate --parallel
+bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>
+bun harness:orchestrate --rollback <launchId> --reason "<why>"
+bun harness:orchestrate --release <launchId>
 bun harness:autoflow
 bun harness:stage --status
 bun harness:stage --promote V2
@@ -180,6 +184,8 @@ bun harness:compact --status
 bun run check:deps
 bun harness:audit
 ```
+
+Use `bun .harness/orchestrator.ts` for read-only planning and routing preview. Use `bun harness:orchestrate` for the stateful launcher boundary: it writes `.harness/launches/*.json` and keeps launch reservations aligned with `execution.activeAgents[]`.
 
 Full command index: `docs/ai/05-commands.md`
 

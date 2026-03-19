@@ -7,6 +7,7 @@ import { createEmptyTaskChecklist } from "./task-checklist"
 
 type ParsedTaskSpec = {
   affectedFiles: string[]
+  dependsOn?: string[]
   dod: string[]
   isUI: boolean
   milestoneId: string
@@ -94,6 +95,7 @@ function defaultMilestone(state: ProjectState): ParsedMilestoneSpec {
         dod: ["Complete foundational project initialization"],
         isUI: taskIsUi,
         affectedFiles: inferTaskFiles(taskIsUi),
+        dependsOn: [],
       },
     ],
   }
@@ -111,8 +113,11 @@ function parsePrdStageSpecs(state: ProjectState): ParsedStageSpec[] {
   let currentMilestone: ParsedMilestoneSpec | null = null
   let currentFeature:
     | {
+        affectedFiles?: string[]
         body: string[]
+        dependsOn?: string[]
         dod: string[]
+        explicitIsUi?: boolean
         featureId: string
         name: string
       }
@@ -128,7 +133,10 @@ function parsePrdStageSpecs(state: ProjectState): ParsedStageSpec[] {
     if (!currentMilestone || !currentFeature) return
 
     const taskText = [currentMilestone.name, currentFeature.name, ...currentFeature.body, ...currentFeature.dod].join(" ")
-    const taskIsUi = inferUiTask(taskText, state.projectInfo.types)
+    const taskIsUi = currentFeature.explicitIsUi ?? inferUiTask(taskText, state.projectInfo.types)
+    const affectedFiles = currentFeature.affectedFiles?.length
+      ? [...currentFeature.affectedFiles]
+      : inferTaskFiles(taskIsUi)
 
     currentMilestone.tasks.push({
       name: currentFeature.name,
@@ -136,7 +144,8 @@ function parsePrdStageSpecs(state: ProjectState): ParsedStageSpec[] {
       milestoneId: currentMilestone.id,
       dod: currentFeature.dod.length > 0 ? currentFeature.dod : ["Meet PRD acceptance criteria"],
       isUI: taskIsUi,
-      affectedFiles: inferTaskFiles(taskIsUi),
+      affectedFiles,
+      dependsOn: currentFeature.dependsOn?.length ? [...currentFeature.dependsOn] : undefined,
     })
 
     currentFeature = null
@@ -196,12 +205,39 @@ function parsePrdStageSpecs(state: ProjectState): ParsedStageSpec[] {
         featureId: featureMatch[1],
         name: featureMatch[2].trim(),
         body: [],
+        dependsOn: [],
         dod: [],
       }
       continue
     }
 
     if (!currentFeature) continue
+
+    const metadataLine = line.replace(/\*\*/g, "").trim()
+
+    const uiMatch = metadataLine.match(/^UI Task\s*:\s*(yes|no)\s*$/i)
+    if (uiMatch) {
+      currentFeature.explicitIsUi = uiMatch[1]!.trim().toLowerCase() === "yes"
+      continue
+    }
+
+    const affectedFilesMatch = metadataLine.match(/^Affected Files\s*:\s*(.+)\s*$/i)
+    if (affectedFilesMatch) {
+      currentFeature.affectedFiles = affectedFilesMatch[1]!
+        .split(",")
+        .map(value => value.trim())
+        .filter(Boolean)
+      continue
+    }
+
+    const dependsOnMatch = metadataLine.match(/^Depends On\s*:\s*(.+)\s*$/i)
+    if (dependsOnMatch) {
+      currentFeature.dependsOn = dependsOnMatch[1]!
+        .split(",")
+        .map(value => value.trim())
+        .filter(Boolean)
+      continue
+    }
 
     const dodMatch = line.match(/^\s*-\s*\[\s*\]\s*(.+)$/)
     if (dodMatch) {
@@ -268,6 +304,7 @@ function createTaskFromSpec(spec: ParsedTaskSpec, taskId: string): Task {
     dod: [...spec.dod],
     isUI: spec.isUI,
     affectedFiles: [...spec.affectedFiles],
+    dependsOn: spec.dependsOn ? [...spec.dependsOn] : undefined,
     retryCount: 0,
     checklist: createEmptyTaskChecklist(),
   }
@@ -516,10 +553,14 @@ export function syncExecutionFromPrd(baseState: ProjectState): {
   assertPlanningDocumentsReady()
   const parsedStages = parsePrdStageSpecs(baseState)
   const roadmapSync = syncRoadmapState(baseState, parsedStages)
-  const activeStage = roadmapSync.roadmap.stages.find(stage => stage.status === "ACTIVE")
+  const activeStage =
+    roadmapSync.roadmap.stages.find(stage => stage.status === "ACTIVE")
+    ?? roadmapSync.roadmap.stages.find(stage => stage.id === roadmapSync.roadmap.currentStageId)
+    ?? roadmapSync.roadmap.stages.find(stage => stage.status === "DEPLOY_REVIEW")
+    ?? roadmapSync.roadmap.stages.find(stage => stage.status === "COMPLETED")
   if (!activeStage) {
     throw new Error(
-      "No ACTIVE product stage is available. If the current stage is waiting on deploy/test, use bun harness:stage --promote V[N] after updating PRD / Architecture.",
+      "No product stage is available. If the current stage is waiting on deploy/test, update PRD / Architecture, then run bun harness:sync-backlog or promote the next stage when ready.",
     )
   }
 
@@ -564,6 +605,7 @@ export function syncExecutionFromPrd(baseState: ProjectState): {
             dod: [...taskSpec.dod],
             isUI: taskSpec.isUI,
             affectedFiles: [...taskSpec.affectedFiles],
+            dependsOn: taskSpec.dependsOn?.length ? [...taskSpec.dependsOn] : undefined,
           }
         }
 
@@ -607,6 +649,27 @@ export function syncExecutionFromPrd(baseState: ProjectState): {
   )
   const pointers = activateNextAvailableTask(milestones)
   const shouldReopenExecution = hasOpenMilestones(milestones)
+  const activeStageHasOpenMilestones = milestones.some(milestone =>
+    milestone.productStageId === activeStage.id &&
+    !["MERGED", "COMPLETE"].includes(milestone.status),
+  )
+
+  if (activeStageHasOpenMilestones) {
+    for (const stage of roadmapSync.roadmap.stages) {
+      if (stage.id === activeStage.id) {
+        stage.status = "ACTIVE"
+        stage.deployReviewStartedAt = undefined
+        stage.deployReviewedAt = undefined
+        stage.completedAt = undefined
+        continue
+      }
+
+      if (stage.status === "ACTIVE" && stage.id !== activeStage.id) {
+        stage.status = "DEFERRED"
+      }
+    }
+    roadmapSync.roadmap.currentStageId = activeStage.id
+  }
 
   const nextState: ProjectState = {
     ...baseState,

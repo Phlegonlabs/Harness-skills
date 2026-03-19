@@ -7,7 +7,8 @@ The resume script reads `.harness/state.json` and `docs/PROGRESS.md` to print a 
 ## Invocation
 
 ```bash
-bun .harness/resume.ts
+bun harness:resume
+bun .harness/resume.ts    # direct path equivalent
 ```
 
 No flags are required. The script exits with code 1 if `.harness/state.json` is missing.
@@ -53,7 +54,7 @@ All milestones are listed with a status icon and task completion ratio (`done/to
 The footer prints context-aware next-step commands:
 
 - **EXECUTING with a current task (main-thread)** — suggested `codex` and `claude` invocations that reference `AGENTS.md`, `PROGRESS.md`, `CONTEXT_SNAPSHOT.md`, and `state.json`
-- **COMPLETE** — points to `bun .harness/orchestrator.ts` and `bun harness:compact --status`
+- **COMPLETE** — points to `bun harness:autoflow` for final compact + context health, plus `bun harness:compact --status` for manual inspection
 - **Other phases** — points to `bun .harness/orchestrator.ts` and the `--next` flag
 
 When the orchestrator dispatches Codex child subagents, those children should not perform a full resume flow. They should use only the orchestrator-provided task packet and scoped references.

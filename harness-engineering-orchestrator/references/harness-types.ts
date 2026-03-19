@@ -484,6 +484,7 @@ export interface GitHubState {
 
 export interface ActiveAgent {
   agentId: string          // Unique agent instance ID
+  launchId?: string        // Launcher-side cycle launch identifier
   logicalAgentId: AgentId  // Harness logical agent identity
   milestoneId: string      // Which milestone this agent is working on
   taskId: string           // Which task this agent is executing
@@ -562,6 +563,7 @@ export type WorkflowEventKind =
   | "entropy_scan_completed"
   | "safety_flag_raised"
   | "metrics_collected"
+  | "scope_change_queued"
   | "scope_change_applied"
   | "level_upgrade_backfill"
 
@@ -703,6 +705,62 @@ export interface AgentTaskPacket {
   timeoutMs?: number
   validationCommand: string
   worktree?: string
+}
+
+export type AgentLaunchKind = "phase-agent" | "task-agent" | "review-agent"
+
+export type LaunchRequestStatus =
+  | "prepared"
+  | "reserved"
+  | "running"
+  | "released"
+  | "rolled-back"
+
+export interface AgentLaunchAdapterHint {
+  closeStrategy: "close-on-integration" | "close-on-review" | "persistent-monitor"
+  forkContext: boolean
+  nativeRole: "default" | "worker" | "explorer" | "monitor"
+  waitStrategy: "immediate" | "defer-until-blocked" | "batch"
+  writeMode: "read-only" | "scoped-write" | "worktree-isolated"
+}
+
+export interface AgentLaunchRequest {
+  launchId: string
+  kind: AgentLaunchKind
+  logicalAgentId: AgentId
+  packet: AgentTaskPacket
+  prompt: string
+  reservation?: ActiveAgent
+  taskSnapshot?: {
+    milestoneStatus: MilestoneStatus
+    startedAt?: string
+    status: TaskStatus
+  }
+  status: LaunchRequestStatus
+  subagentPolicy?: SubagentDispatchPolicy
+  postAction?: string
+  adapterHints: {
+    claude: AgentLaunchAdapterHint
+    codex: AgentLaunchAdapterHint
+  }
+  lifecycle: {
+    afterCompletion: string[]
+    confirmCommand?: string
+    releaseCommand?: string
+    rollbackCommand?: string
+    validationCommand: string
+  }
+}
+
+export interface LaunchCycle {
+  cycleId: string
+  launcherCommand: string
+  mode: "single" | "parallel"
+  plannerCommand: string
+  preparedAt: string
+  protocolVersion: "1.0"
+  stateVersion: number
+  launches: AgentLaunchRequest[]
 }
 
 // ── Skill-Level Team Configuration ───────────────────────────────────────────

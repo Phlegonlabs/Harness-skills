@@ -30,6 +30,27 @@ function summarizeFirstFailure<T>(
   return render(entries[0]!)
 }
 
+function markerVariants(marker: string): string[] {
+  if (!marker.endsWith("✅")) return [marker]
+
+  return [
+    marker,
+    marker.replace(/✅$/, "âœ…"),
+  ]
+}
+
+export function commitMessageIncludesMarker(output: string, marker: string): boolean {
+  const variants = markerVariants(marker)
+  if (variants.some(variant => output.includes(variant))) return true
+
+  try {
+    const repaired = Buffer.from(output, "latin1").toString("utf8")
+    return variants.some(variant => repaired.includes(variant))
+  } catch {
+    return false
+  }
+}
+
 export async function validateTask(
   taskId: string,
   state: ProjectState,
@@ -142,7 +163,7 @@ export async function validateTask(
     const lastCommit = runGit(["log", "-1", "--pretty=%B"])
     if (!lastCommit.ok) {
       reporter.warn("Unable to read the last commit message; confirm Design Review approval manually")
-    } else if (lastCommit.output.includes("Design Review: ✅")) {
+    } else if (commitMessageIncludesMarker(lastCommit.output, "Design Review: ✅")) {
       reporter.pass("Design Review passed [G7]")
     } else {
       reporter.failSoft("UI task is missing 'Design Review: ✅' [G7]", "Design Reviewer approval is required before commit")
@@ -153,7 +174,7 @@ export async function validateTask(
     const lastCommit = runGit(["log", "-1", "--pretty=%B"])
     if (!lastCommit.ok) {
       reporter.warn("Unable to read the last commit message; confirm Code Review approval manually")
-    } else if (lastCommit.output.includes("Code Review: ✅")) {
+    } else if (commitMessageIncludesMarker(lastCommit.output, "Code Review: ✅")) {
       reporter.pass("Code Review passed")
     } else {
       reporter.failSoft("Non-UI task is missing 'Code Review: ✅'", "Code Reviewer approval is required before commit")

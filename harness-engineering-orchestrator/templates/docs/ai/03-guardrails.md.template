@@ -25,6 +25,6 @@ types → config → lib → services → app
 
 ### Automated Guardian Hooks
 
-Guardians G2-G10 are enforced automatically by git hooks, Claude Code hooks, and Codex CLI hooks installed during scaffold. Manual `bun harness:validate` remains available for comprehensive validation. Hooks catch common violations at the point of action across all three surfaces.
+Guardians G2-G12 are enforced automatically by git hooks, Claude Code hooks, and Codex CLI hooks installed during scaffold. Manual `bun harness:validate` remains available for comprehensive validation. Hooks catch common violations at the point of action across all three surfaces.
 
 Emergency bypass: `HARNESS_HOOKS_SKIP=1 git commit ...`

@@ -48,24 +48,28 @@ function Invoke-Step {
   $logPath = Join-Path $ReportsRoot ("{0}-{1}.log" -f $CaseId, $StepName)
   $stdoutPath = [System.IO.Path]::GetTempFileName()
   $stderrPath = [System.IO.Path]::GetTempFileName()
-  $argumentLine = ($Arguments | ForEach-Object {
-    $value = [string]$_
-    if ($value -match '[\s"]') {
-      '"' + ($value -replace '"', '\"') + '"'
-    } else {
-      $value
-    }
-  }) -join " "
+  $argumentList = @($Arguments | Where-Object { $null -ne $_ -and "$_".Length -gt 0 })
   try {
-    $process = Start-Process `
-      -FilePath $Exe `
-      -ArgumentList $argumentLine `
-      -WorkingDirectory $WorkingDir `
-      -NoNewWindow `
-      -Wait `
-      -PassThru `
-      -RedirectStandardOutput $stdoutPath `
-      -RedirectStandardError $stderrPath
+    if ($argumentList.Count -gt 0) {
+      $process = Start-Process `
+        -FilePath $Exe `
+        -ArgumentList $argumentList `
+        -WorkingDirectory $WorkingDir `
+        -NoNewWindow `
+        -Wait `
+        -PassThru `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath
+    } else {
+      $process = Start-Process `
+        -FilePath $Exe `
+        -WorkingDirectory $WorkingDir `
+        -NoNewWindow `
+        -Wait `
+        -PassThru `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath
+    }
 
     $stdout = ""
     if (Test-Path $stdoutPath) {
@@ -203,6 +207,7 @@ function Test-ScaffoldContract {
     ".harness/state.ts",
     ".harness/validate.ts",
     ".harness/orchestrator.ts",
+    ".harness/orchestrate.ts",
     ".harness/stage.ts",
     ".harness/add-surface.ts",
     ".harness/audit.ts",
@@ -382,6 +387,36 @@ function Get-StepJson {
     }
 
     return $Step.Output | ConvertFrom-Json
+  } catch {
+    $raw = [string]$Step.Output
+    $start = $raw.IndexOf("{")
+    $end = $raw.LastIndexOf("}")
+    if ($start -lt 0 -or $end -le $start) {
+      return $null
+    }
+
+    $candidate = $raw.Substring($start, ($end - $start + 1))
+    try {
+      if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $candidate | ConvertFrom-Json -Depth 20
+      }
+
+      return $candidate | ConvertFrom-Json
+    } catch {
+      return $null
+    }
+  }
+}
+
+function Get-JsonFile {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path)) {
+    return $null
+  }
+
+  try {
+    return Get-Content $Path -Raw | ConvertFrom-Json
   } catch {
     return $null
   }
@@ -657,9 +692,18 @@ foreach ($case in $Cases) {
       @{ Step = "validate-full"; Expect = "expected-fail"; Exe = "bun"; Args = @("harness:validate"); ExpectFailure = $true },
       @{ Step = "orch-status"; Expect = "pass"; Exe = "bun"; Args = @(".harness/orchestrator.ts", "--status") },
       @{ Step = "orch-next"; Expect = "pass"; Exe = "bun"; Args = @(".harness/orchestrator.ts", "--next") },
+      @{ Step = "orch-launch-json"; Expect = "pass"; Exe = "bun"; Args = @(".harness/orchestrate.ts", "--json") },
       @{ Step = "orch-default"; Expect = "pass"; Exe = "bun"; Args = @(".harness/orchestrator.ts") }
       )) {
       $step = Invoke-Step -CaseId $case.Id -StepName $commandSpec.Step -WorkingDir $caseDir -Exe $commandSpec.Exe -Arguments $commandSpec.Args -ExpectFailure:([bool]$commandSpec.ExpectFailure)
+      if ($commandSpec.Step -eq "orch-launch-json") {
+        $launchJson = Get-StepJson -Step $step
+        $launchCycle = if ($launchJson) { $launchJson.cycle } else { $null }
+        $step.Ok = $step.Ok `
+          -and ($null -ne $launchCycle) `
+          -and ($launchCycle.protocolVersion -eq "1.0") `
+          -and (@($launchCycle.launches).Count -ge 1)
+      }
       if ($commandSpec.Step -eq "orch-default") {
         $step.Ok = $step.Ok -and
           $step.Output.Contains("Harness Orchestrator") -and
@@ -745,6 +789,91 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
   $cliPacketCheck = New-CheckedStep -Step $cliPacketStep -Ok ([bool]$cliPacketCheckResult.Ok) -Reason $cliPacketCheckResult.Reason
   Add-DeepResult -CaseId "03-cli" -Scenario "cli packet stays selective" -Expected "execution packet excludes unrelated docs" -Step $cliPacketCheck
 
+  $launcherMilestone = New-Milestone -Name "Parallel Launcher Flow" -Tasks @((New-Task -Id "T704" -Name "Parallel CLI Task" -IsUi $false -Status "PENDING")) -Status "PENDING"
+  $launcherPatch = Invoke-StatePatch -CaseId "03-cli" -CaseDir $CliDir -StepName "patch-launcher-cycle" -Patch @{
+    phase = "EXECUTING"
+    projectInfo = @{
+      concurrency = @{
+        maxParallelTasks = 2
+        maxParallelMilestones = 1
+        enableInterMilestone = $false
+      }
+    }
+    execution = @{
+      currentMilestone = ""
+      currentTask = ""
+      currentWorktree = ""
+      milestones = @($launcherMilestone)
+      activeAgents = @()
+      allMilestonesComplete = $false
+    }
+  }
+  Add-DeepResult -CaseId "03-cli" -Scenario "patch launcher cycle" -Expected "patch ok" -Step $launcherPatch
+
+  $launchPrepareStep = Invoke-Step -CaseId "03-cli" -StepName "launcher-prepare" -WorkingDir $CliDir -Exe "bun" -Arguments @(".harness/orchestrate.ts", "--parallel", "--json")
+  $launchPrepareOutput = [string]$launchPrepareStep.Output
+  $launchIdMatch = [regex]::Match($launchPrepareOutput, '"launchId"\s*:\s*"([^"]+)"')
+  $latestLaunchPath = Join-Path $CliDir ".harness\launches\latest.json"
+  $launchId = if ($launchIdMatch.Success) { $launchIdMatch.Groups[1].Value } else { "" }
+  $launcherPrepareState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+  $launchPrepareStep.Ok = $launchPrepareStep.Ok `
+    -and $launchPrepareOutput.Contains('"mode": "parallel"') `
+    -and $launchPrepareOutput.Contains('"kind": "task-agent"') `
+    -and $launchPrepareOutput.Contains('"status": "reserved"') `
+    -and (-not [string]::IsNullOrWhiteSpace($launchId)) `
+    -and (Test-Path $latestLaunchPath) `
+    -and $launchPrepareOutput.Contains($launchId) `
+    -and ($null -ne $launcherPrepareState) `
+    -and (@($launcherPrepareState.execution.activeAgents).Count -eq 1) `
+    -and (@($launcherPrepareState.execution.activeAgents)[0].launchId -eq $launchId)
+  Add-DeepResult -CaseId "03-cli" -Scenario "launcher prepare cycle" -Expected "reserve launch cycle and persist latest.json" -Step $launchPrepareStep
+
+  $confirmHandle = "smoke-handle-T704"
+  $launchConfirmStep = Invoke-Step -CaseId "03-cli" -StepName "launcher-confirm" -WorkingDir $CliDir -Exe "powershell" -Arguments @(
+    "-NoProfile",
+    "-Command",
+    "& bun .harness/orchestrate.ts --confirm '$launchId' --handle '$confirmHandle' --json"
+  )
+  $launchConfirmJson = Get-StepJson -Step $launchConfirmStep
+  $launcherConfirmState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+  $launchConfirmStep.Ok = $launchConfirmStep.Ok `
+    -and ($null -ne $launchConfirmJson) `
+    -and ($launchConfirmJson.launch.status -eq "running") `
+    -and ($null -ne $launcherConfirmState) `
+    -and (@($launcherConfirmState.execution.activeAgents).Count -eq 1) `
+    -and (@($launcherConfirmState.execution.activeAgents)[0].runtimeHandle -eq $confirmHandle) `
+    -and (@($launcherConfirmState.execution.activeAgents)[0].status -eq "running") `
+    -and ($launcherConfirmState.execution.currentTask -eq "T704") `
+    -and (@(@($launcherConfirmState.execution.milestones)[0].tasks)[0].status -eq "IN_PROGRESS")
+  Add-DeepResult -CaseId "03-cli" -Scenario "launcher confirm cycle" -Expected "confirm handle and move reservation to running" -Step $launchConfirmStep
+
+  $launchReleaseStep = Invoke-Step -CaseId "03-cli" -StepName "launcher-release" -WorkingDir $CliDir -Exe "powershell" -Arguments @(
+    "-NoProfile",
+    "-Command",
+    "& bun .harness/orchestrate.ts --release '$launchId' --json"
+  )
+  $launchReleaseJson = Get-StepJson -Step $launchReleaseStep
+  $launcherReleaseState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+  $latestReleasedJson = Get-JsonFile -Path $latestLaunchPath
+  $launchReleaseStep.Ok = $launchReleaseStep.Ok `
+    -and ($null -ne $launchReleaseJson) `
+    -and ($launchReleaseJson.launch.status -eq "released") `
+    -and ($null -ne $launcherReleaseState) `
+    -and (@($launcherReleaseState.execution.activeAgents).Count -eq 0) `
+    -and ($null -ne $latestReleasedJson) `
+    -and (@($latestReleasedJson.launches)[0].status -eq "released")
+  Add-DeepResult -CaseId "03-cli" -Scenario "launcher release cycle" -Expected "release reservation and persist released status" -Step $launchReleaseStep
+
+  $launcherCleanupPatch = Invoke-StatePatch -CaseId "03-cli" -CaseDir $CliDir -StepName "patch-launcher-cleanup" -Patch @{
+    execution = @{
+      activeAgents = @()
+      currentMilestone = ""
+      currentTask = ""
+      currentWorktree = ""
+    }
+  }
+  Add-DeepResult -CaseId "03-cli" -Scenario "patch launcher cleanup" -Expected "patch ok" -Step $launcherCleanupPatch
+
   $validatorPacketPatch = Invoke-StatePatch -CaseId "03-cli" -CaseDir $CliDir -StepName "patch-validator-packet" -Patch @{
     phase = "VALIDATING"
     execution = @{
@@ -806,9 +935,48 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
   $resetBacklogStep.Ok = $resetBacklogStep.Ok -and $resetBacklogStep.Output.Contains("stock scaffold feature")
   Add-DeepResult -CaseId "03-cli" -Scenario "happy path reset backlog is blocked until PRD is real" -Expected "stock scaffold feature" -Step $resetBacklogStep
 
-  $happyBacklogReady = $resetBacklogStep.ExitCode -eq 0
+  Get-ChildItem -Path (Join-Path $CliDir "docs\prd") -Filter *.md -ErrorAction SilentlyContinue | Remove-Item -Force
+  Get-ChildItem -Path (Join-Path $CliDir "docs\architecture") -Filter *.md -ErrorAction SilentlyContinue | Remove-Item -Force
+
+  Set-Content -Path (Join-Path $CliDir "docs\PRD.md") -Value @'
+> **Version**: v1.1
+
+## Product Stage V1: Initial Delivery [ACTIVE]
+
+### Milestone 1: Foundation
+
+#### F001: Ship CLI foundation
+- [ ] Complete the CLI foundation path
+'@
+
+  Set-Content -Path (Join-Path $CliDir "docs\ARCHITECTURE.md") -Value @'
+> **Version**: v1.1
+
+## System Overview
+
+CLI-first Harness execution baseline.
+
+## Dependency Direction
+
+types -> config -> lib -> services -> app
+'@
+
+  $realBacklogStep = Invoke-Step -CaseId "03-cli" -StepName "happy-reset-backlog-real" -WorkingDir $CliDir -Exe "bun" -Arguments @(".harness/init.ts", "--from-prd")
+  $realBacklogState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+  $realBacklogStep.Ok = $realBacklogStep.Ok `
+    -and ($null -ne $realBacklogState) `
+    -and ($realBacklogState.execution.currentMilestone -eq "M1") `
+    -and ($realBacklogState.execution.currentTask -eq "T001")
+  Add-DeepResult -CaseId "03-cli" -Scenario "happy path reset backlog after real planning docs" -Expected "T001 materialized from real PRD" -Step $realBacklogStep
+
+  $happyBacklogReady = $realBacklogStep.Ok
 
   if ($happyBacklogReady) {
+    $gitInitStep = Invoke-Step -CaseId "03-cli" -StepName "happy-git-init" -WorkingDir $CliDir -Exe "git" -Arguments @("init", "-b", "main")
+    Add-DeepResult -CaseId "03-cli" -Scenario "happy path git init" -Expected "nested git repo ready" -Step $gitInitStep
+
+    [void](Invoke-Step -CaseId "03-cli" -StepName "happy-git-encoding-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("config", "i18n.commitEncoding", "utf-8"))
+    [void](Invoke-Step -CaseId "03-cli" -StepName "happy-git-encoding-log" -WorkingDir $CliDir -Exe "git" -Arguments @("config", "i18n.logOutputEncoding", "utf-8"))
     $gitUserName = Invoke-Step -CaseId "03-cli" -StepName "happy-git-user" -WorkingDir $CliDir -Exe "git" -Arguments @("config", "user.name", "Harness Test")
     Add-DeepResult -CaseId "03-cli" -Scenario "happy path git user" -Expected "git config ok" -Step $gitUserName
 
@@ -818,7 +986,11 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
     $gitBootstrapAdd = Invoke-Step -CaseId "03-cli" -StepName "happy-bootstrap-add" -WorkingDir $CliDir -Exe "git" -Arguments @("add", ".")
     Add-DeepResult -CaseId "03-cli" -Scenario "happy path bootstrap add" -Expected "git add ok" -Step $gitBootstrapAdd
 
-    $gitBootstrapCommit = Invoke-Step -CaseId "03-cli" -StepName "happy-bootstrap-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("commit", "-m", "chore: bootstrap")
+    $gitBootstrapCommit = Invoke-Step -CaseId "03-cli" -StepName "happy-bootstrap-commit" -WorkingDir $CliDir -Exe "powershell" -Arguments @(
+      "-NoProfile",
+      "-Command",
+      "git commit -m 'chore: bootstrap'"
+    )
     Add-DeepResult -CaseId "03-cli" -Scenario "happy path bootstrap commit" -Expected "bootstrap commit" -Step $gitBootstrapCommit
 
     $branchStep = Invoke-Step -CaseId "03-cli" -StepName "happy-branch" -WorkingDir $CliDir -Exe "git" -Arguments @("checkout", "-b", "milestone/m1-foundation")
@@ -831,12 +1003,24 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
     $gitTaskAdd = Invoke-Step -CaseId "03-cli" -StepName "happy-task-add" -WorkingDir $CliDir -Exe "git" -Arguments @("add", ".")
     Add-DeepResult -CaseId "03-cli" -Scenario "happy path task add" -Expected "git add ok" -Step $gitTaskAdd
 
-    $gitCommitStep = Invoke-Step -CaseId "03-cli" -StepName "happy-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("commit", "-m", "feat: complete T001", "-m", "Code Review: ✅")
+    $happyCommitMessagePath = Join-Path $CliDir "happy-commit-message.txt"
+    [System.IO.File]::WriteAllText(
+      $happyCommitMessagePath,
+      "feat: complete T001 PRD#F001`n`nCode Review: ✅`n",
+      (New-Object System.Text.UTF8Encoding($false))
+    )
+    $gitCommitStep = Invoke-Step -CaseId "03-cli" -StepName "happy-commit" -WorkingDir $CliDir -Exe "git" -Arguments @("commit", "-F", $happyCommitMessagePath)
+    Remove-Item $happyCommitMessagePath -ErrorAction SilentlyContinue
     Add-DeepResult -CaseId "03-cli" -Scenario "happy path git commit" -Expected "task commit" -Step $gitCommitStep
 
     if ($gitCommitStep.Ok) {
       $headCommit = Get-HeadCommit -WorkingDir $CliDir
+      [void](Invoke-Step -CaseId "03-cli" -StepName "happy-prevalidate-task" -WorkingDir $CliDir -Exe "bun" -Arguments @("harness:validate", "--task", "T001") -ExpectFailure)
       $completeTaskStep = Invoke-Step -CaseId "03-cli" -StepName "happy-complete-task" -WorkingDir $CliDir -Exe "bun" -Arguments @(".harness/init.ts", "--complete-task", "T001", "--commit", $headCommit)
+      $snapshotPath = Join-Path $CliDir "docs\progress\CONTEXT_SNAPSHOT.md"
+      $completeTaskStep.Ok = $completeTaskStep.Ok `
+        -and (Test-Path $snapshotPath) `
+        -and ([string](Get-Content $snapshotPath -Raw)).Contains("> Mode: task")
       Add-DeepResult -CaseId "03-cli" -Scenario "happy path completeTask()" -Expected "Task T001 marked DONE" -Step $completeTaskStep
 
       $validateTaskPass = Invoke-Step -CaseId "03-cli" -StepName "happy-validate-task" -WorkingDir $CliDir -Exe "bun" -Arguments @("harness:validate", "--task", "T001")
@@ -892,8 +1076,74 @@ if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
         $validateCompletePass = Invoke-Step -CaseId "03-cli" -StepName "happy-validate-complete" -WorkingDir $CliDir -Exe "bun" -Arguments @("harness:validate", "--phase", "COMPLETE")
         Add-DeepResult -CaseId "03-cli" -Scenario "happy path validate complete" -Expected "validate complete pass" -Step $validateCompletePass
 
+        $autoflowCompletePass = Invoke-Step -CaseId "03-cli" -StepName "happy-autoflow-complete" -WorkingDir $CliDir -Exe "bun" -Arguments @("run", "harness:autoflow")
+        $autoflowCompletePass.Ok = $autoflowCompletePass.Ok `
+          -and (Test-Path $snapshotPath) `
+          -and ([string](Get-Content $snapshotPath -Raw)).Contains("> Mode: task")
+        Add-DeepResult -CaseId "03-cli" -Scenario "happy path autoflow complete compact" -Expected "complete autoflow writes final compact snapshot" -Step $autoflowCompletePass
+
         $compactStatusPass = Invoke-Step -CaseId "03-cli" -StepName "happy-compact-status" -WorkingDir $CliDir -Exe "bun" -Arguments @("run", "harness:compact:status")
         Add-DeepResult -CaseId "03-cli" -Scenario "happy path compact status" -Expected "compact status pass" -Step $compactStatusPass
+
+        $scopeChangePayloadPath = Join-Path $CliDir "scope-change-request.json"
+        $scopeChangePayload = @{
+          description = "Post-release remediation"
+          source = "user-request"
+          priority = "urgent"
+          targetMilestoneId = "M1"
+          proposedTasks = @(
+            @{
+              name = "Patch post-release regression"
+              dod = @("Close the regression", "Update the remediation note")
+              isUI = $false
+              affectedFiles = @("src/lib", "tests/unit")
+              dependsOn = @("T001")
+            }
+          )
+        } | ConvertTo-Json -Depth 10 -Compress
+        [System.IO.File]::WriteAllText(
+          $scopeChangePayloadPath,
+          $scopeChangePayload,
+          (New-Object System.Text.UTF8Encoding($false))
+        )
+
+        $scopeQueueStep = Invoke-Step -CaseId "03-cli" -StepName "happy-scope-queue" -WorkingDir $CliDir -Exe "cmd" -Arguments @(
+          "/c",
+          "type `"$scopeChangePayloadPath`" | bun .harness/scope-change.ts --from-stdin"
+        )
+        $queuedState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+        $scopeQueueStep.Ok = $scopeQueueStep.Ok `
+          -and $scopeQueueStep.Output.Contains("Scope change queued") `
+          -and ($null -ne $queuedState) `
+          -and (@($queuedState.execution.pendingScopeChanges).Count -eq 1)
+        Add-DeepResult -CaseId "03-cli" -Scenario "happy path scope change queue" -Expected "pending scope change is recorded" -Step $scopeQueueStep
+
+        $scopePreviewStep = Invoke-Step -CaseId "03-cli" -StepName "happy-scope-preview" -WorkingDir $CliDir -Exe "bun" -Arguments @("run", "harness:scope-change", "--preview")
+        $scopePreviewStep.Ok = $scopePreviewStep.Ok `
+          -and $scopePreviewStep.Output.Contains("New Milestone: M2") `
+          -and $scopePreviewStep.Output.Contains("T002: Patch post-release regression")
+        Add-DeepResult -CaseId "03-cli" -Scenario "happy path scope change preview" -Expected "preview shows new milestone and task" -Step $scopePreviewStep
+
+        $scopeApplyStep = Invoke-Step -CaseId "03-cli" -StepName "happy-scope-apply" -WorkingDir $CliDir -Exe "bun" -Arguments @("run", "harness:scope-change", "--apply")
+        $scopeAppliedState = Get-JsonFile -Path (Join-Path $CliDir ".harness\state.json")
+        $progressPath = Join-Path $CliDir "docs\PROGRESS.md"
+        $progressContent = if (Test-Path $progressPath) { [string](Get-Content $progressPath -Raw) } else { "" }
+        $scopeApplyStep.Ok = $scopeApplyStep.Ok `
+          -and $scopeApplyStep.Output.Contains("+1 milestone(s), +1 task(s)") `
+          -and ($null -ne $scopeAppliedState) `
+          -and ($scopeAppliedState.phase -eq "EXECUTING") `
+          -and ($scopeAppliedState.execution.currentMilestone -eq "M2") `
+          -and ($scopeAppliedState.execution.currentTask -eq "T002") `
+          -and (@($scopeAppliedState.execution.pendingScopeChanges).Count -eq 0) `
+          -and $progressContent.Contains("M2") `
+          -and $progressContent.Contains("T002")
+        Add-DeepResult -CaseId "03-cli" -Scenario "happy path scope change apply" -Expected "execution reopens with new milestone and progress sync" -Step $scopeApplyStep
+
+        $scopeNextStep = Invoke-Step -CaseId "03-cli" -StepName "happy-scope-next" -WorkingDir $CliDir -Exe "bun" -Arguments @(".harness/orchestrator.ts", "--next")
+        $scopeNextStep.Ok = $scopeNextStep.Ok -and $scopeNextStep.Output.Contains("execution-engine")
+        Add-DeepResult -CaseId "03-cli" -Scenario "happy path scope change resumes dispatch" -Expected "execution-engine" -Step $scopeNextStep
+
+        Remove-Item $scopeChangePayloadPath -ErrorAction SilentlyContinue
       }
     }
   }
@@ -1071,12 +1321,18 @@ if ((Test-Path $WebDir) -and $WebSmoke -and $WebSmoke.SmokePassed) {
 if ((Test-Path $CliDir) -and $CliSmoke -and $CliSmoke.SmokePassed) {
   $autoPatch = Invoke-StatePatch -CaseId "03-cli" -CaseDir $CliDir -StepName "patch-autoflow-scaffold" -Patch @{
     phase = "SCAFFOLD"
+    execution = @{
+      activeAgents = @()
+      currentMilestone = ""
+      currentTask = ""
+      currentWorktree = ""
+    }
   }
   Add-DeepResult -CaseId "03-cli" -Scenario "patch autoflow scaffold" -Expected "patch ok" -Step $autoPatch
 
   $autoflowStep = Invoke-Step -CaseId "03-cli" -StepName "autoflow-happy" -WorkingDir $CliDir -Exe "bun" -Arguments @("run", "harness:autoflow")
-  $autoflowStep.Ok = $autoflowStep.Ok -and $autoflowStep.Output.Contains("Next agent: prd-architect")
-  Add-DeepResult -CaseId "03-cli" -Scenario "autoflow happy path" -Expected "stop at prd-architect" -Step $autoflowStep
+  $autoflowStep.Ok = $autoflowStep.Ok -and $autoflowStep.Output.Contains("Next agent: execution-engine")
+  Add-DeepResult -CaseId "03-cli" -Scenario "autoflow happy path" -Expected "stop at execution-engine after scaffold handoff" -Step $autoflowStep
 }
 
 $hydrateDir = Join-Path $RunRoot "hydrate-existing-repo"

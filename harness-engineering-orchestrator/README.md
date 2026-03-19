@@ -27,7 +27,7 @@ npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill
 # In a target repo, scaffold the workflow
 bun <path-to-skill>/scripts/harness-setup.ts
 
-# Start the orchestrator
+# Launch the next agent
 bun harness:orchestrate
 ```
 
@@ -254,13 +254,17 @@ Commands below are run from the managed project checkout unless noted otherwise.
 | `bun <path-to-skill>/scripts/harness-setup.ts` | Start a new greenfield repo | Generate the Harness runtime, docs skeleton, hooks, and base workspace |
 | `bun <path-to-skill>/scripts/harness-setup.ts --isGreenfield=false --skipGithub=true` | Hydrate an existing repo | Add the Harness runtime around an existing codebase without replacing product code |
 | `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`) | Any time during delivery | Show status and dispatch the next agent or manual action |
-| `bun harness:orchestrate` | When you want the parent runtime to execute one launch cycle | Spawn, verify, integrate, and close the next child action |
+| `bun harness:orchestrate` | When you want the parent runtime to execute one launch cycle | Prepare and reserve the next child launch cycle for parent-runtime execution |
+| `bun harness:orchestrate --json` | When the parent runtime needs a machine-readable launch contract | Emit the launch cycle JSON and persist `.harness/launches/latest.json` |
 | `bun .harness/orchestrator.ts --parallel` | During execution with eligible tasks | Preview parallel-eligible sidecars/tasks without spawning them |
 | `bun harness:orchestrate --parallel` | During execution with eligible parallel work | Execute one parent-owned parallel launch cycle |
+| `bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>` | Right after a child runtime successfully spawns | Bind the runtime handle and move the reservation to `running` |
+| `bun harness:orchestrate --rollback <launchId> --reason "<why>"` | If child spawn fails or a launch must be aborted before integration | Roll back the reservation and restore the pre-launch task snapshot |
+| `bun harness:orchestrate --release <launchId>` | After integration / closeout when the child reservation should be cleared | Deregister the active agent reservation from state |
 | `bun harness:advance` | At a phase boundary | Validate the next phase gate and advance state only if it passes |
 | `bun harness:sync-backlog` | PRD changed inside the current active stage | Append new stage/milestone/task scope without destroying completed history |
 | `bun harness:scope-change --preview` | Before applying a scope change | Preview structured scope changes without modifying state |
-| `bun harness:scope-change --apply` | After confirming a scope change | Apply structured scope changes to PRD and sync backlog |
+| `bun harness:scope-change --apply` | After confirming a scope change | Apply structured scope changes to PRD, sync backlog/progress, and reopen execution when new work lands |
 | `bun harness:scope-change --reject <id>` | When a pending scope change should be discarded | Reject a queued change without applying it |
 | `bun harness:autoflow` | A milestone is in `REVIEW` | Compact, merge, clean up the milestone, then continue until the next true stop point |
 | `bun harness:stage --status` | During execution or deploy review | Show the current `V1 / V2 / V3` roadmap state |
@@ -305,6 +309,7 @@ Use this as the practical runbook from project start to project finish.
    - Follow the dispatched agent or manual next action instead of guessing the next step
    - Use `bun .harness/orchestrator.ts --parallel` to preview eligible parallel work
    - Use `bun harness:orchestrate --parallel` only when you want the parent runtime to actually launch that batch
+   - Use `bun harness:orchestrate --json` when the parent runtime needs the launch cycle, lifecycle commands, and reservation metadata in machine-readable form
 
 6. Execute one task at a time.
    - The current task must match its `prdRef`
@@ -324,7 +329,7 @@ Use this as the practical runbook from project start to project finish.
    - Deploy and test the version in the real environment before starting the next version
 
 10. Continue the current version or promote the next one.
-    - If scope changed inside the current active version: update PRD / Architecture, then run `bun harness:sync-backlog`
+    - If scope changed inside the current active version: update PRD / Architecture, then run `bun harness:sync-backlog` or use `bun harness:scope-change --apply` for queue + apply + sync
     - If `V1` is done and `V2` is ready: update the main PRD / Architecture to the next version, then run `bun harness:stage --promote V2`
     - If there is no next version left: finish validation and close out the project
 
@@ -359,7 +364,7 @@ Use this as the practical runbook from project start to project finish.
 - Each task must map to a `prdRef` and close with exactly one atomic commit.
 - Only one milestone is reviewed, compacted, and merged at a time.
 - Stage completion stops at `DEPLOY_REVIEW`; the next version does not auto-start.
-- New scope inside the current version must update the PRD first, then run `bun harness:sync-backlog`.
+- New scope inside the current version must update the PRD first. If you use `bun harness:scope-change --apply`, backlog/progress sync now happens automatically; if you edit the PRD manually, run `bun harness:sync-backlog`.
 - Hooks continuously enforce guardrails, while dispatch/lifecycle decisions remain orchestrator-owned.
 - Guardians G1-G12 are enforced through runtime checks, hooks, and CI depending on the rule; violations block the relevant operation until resolved.
 - Errors follow the 11-category taxonomy with automatic retries for transient failures and escalation for persistent ones.

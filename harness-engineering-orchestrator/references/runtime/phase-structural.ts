@@ -102,6 +102,7 @@ function executingStructuralChecks(state: ProjectState): StructuralCheck[] {
     check(existsSync(".harness/state.ts"), ".harness/state.ts is present"),
     check(existsSync(".harness/validate.ts"), ".harness/validate.ts is present"),
     check(existsSync(".harness/orchestrator.ts"), ".harness/orchestrator.ts is present"),
+    check(existsSync(".harness/orchestrate.ts"), ".harness/orchestrate.ts is present"),
     check(existsSync(".harness/stage.ts"), ".harness/stage.ts is present"),
     check(existsSync(".harness/compact.ts"), ".harness/compact.ts is present"),
     check(existsSync(".harness/add-surface.ts"), ".harness/add-surface.ts is present"),

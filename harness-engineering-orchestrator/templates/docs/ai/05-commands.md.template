@@ -3,7 +3,11 @@
 ```bash
 bun harness:advance
 bun harness:orchestrate
+bun harness:orchestrate --json
 bun harness:orchestrate --parallel
+bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>
+bun harness:orchestrate --rollback <launchId> --reason "<why>"
+bun harness:orchestrate --release <launchId>
 bun harness:autoflow
 bun harness:stage --status
 bun harness:stage --promote V2
@@ -26,5 +30,7 @@ bun harness:compact --status
 bun run check:deps
 bun harness:audit
 ```
+
+> `bun .harness/orchestrator.ts` is the read-only planner. `bun harness:orchestrate` is the stateful launcher and persists launch-cycle files under `.harness/launches/`.
 
 > `bun harness:validate` runs the full final validation; it is recommended to run it after phase / task / milestone validation.

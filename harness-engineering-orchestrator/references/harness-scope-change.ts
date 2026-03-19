@@ -8,8 +8,11 @@
 
 import { existsSync, readFileSync, writeFileSync } from "fs"
 import { generatePrdDelta } from "./runtime/prd-delta"
-import { readProjectStateFromDisk, writeProjectStateToDisk } from "./runtime/state-io"
+import { syncExecutionFromPrd } from "./runtime/backlog"
 import { deriveStateFromFilesystem, STATE_PATH } from "./runtime/shared"
+import { writeState } from "./runtime/state-core"
+import { readProjectStateFromDisk } from "./runtime/state-io"
+import { appendWorkflowEvent } from "./runtime/workflow-history"
 import type { ScopeChangeRequest } from "./types"
 
 if (!existsSync(STATE_PATH)) {
@@ -71,7 +74,7 @@ if (args.includes("--preview")) {
     change.status = "previewed"
   }
 
-  writeProjectStateToDisk(state)
+  writeState(state)
   console.log("Run `bun harness:scope-change --apply` to confirm.")
   process.exit(0)
 }
@@ -103,25 +106,28 @@ if (args.includes("--apply")) {
 
   writeFileSync(prdPath, prdContent)
 
-  // Remove applied changes from pending
+  // Remove applied changes from pending before syncing execution back from the PRD.
   state.execution.pendingScopeChanges = (state.execution.pendingScopeChanges ?? []).filter(
     c => c.status !== "applied",
   )
 
-  // Record workflow event
-  state.history.events.push({
-    at: new Date().toISOString(),
+  const synced = syncExecutionFromPrd(state)
+  appendWorkflowEvent(synced.state, {
     kind: "scope_change_applied",
-    phase: state.phase,
-    summary: `Applied ${previewed.length} scope change(s)`,
+    phase: synced.state.phase,
+    stageId: synced.state.roadmap.currentStageId || undefined,
+    summary: `Applied ${previewed.length} scope change(s): ${previewed.map(change => change.description).join("; ")}`,
     visibility: "internal",
   })
-
-  state.updatedAt = new Date().toISOString()
-  writeProjectStateToDisk(state)
+  const persisted = writeState(synced.state)
 
   console.log("")
-  console.log("PRD updated. Run `bun harness:sync-backlog` to sync execution state.")
+  console.log(
+    `PRD updated and backlog synced: +${synced.addedStages} stage(s), +${synced.addedMilestones} milestone(s), +${synced.addedTasks} task(s)`,
+  )
+  console.log(
+    `Current task: ${persisted.execution.currentTask || "—"}  |  Worktree: ${persisted.execution.currentWorktree || "—"}`,
+  )
   process.exit(0)
 }
 
@@ -137,7 +143,7 @@ if (args.includes("--reject")) {
 
   found.status = "rejected"
   state.execution.pendingScopeChanges = pending.filter(c => c.status !== "rejected")
-  writeProjectStateToDisk(state)
+  writeState(state)
   console.log(`❌ Rejected scope change: ${found.description}`)
   process.exit(0)
 }
@@ -162,7 +168,15 @@ if (args.includes("--from-stdin")) {
     state.execution.pendingScopeChanges = []
   }
   state.execution.pendingScopeChanges.push(request)
-  writeProjectStateToDisk(state)
+  appendWorkflowEvent(state, {
+    kind: "scope_change_queued",
+    phase: state.phase,
+    stageId: state.roadmap.currentStageId || undefined,
+    milestoneId: request.targetMilestoneId,
+    summary: `Queued scope change: ${request.description}`,
+    visibility: "internal",
+  })
+  writeState(state)
   console.log(`📋 Scope change queued: ${request.description}`)
   console.log("Run `bun harness:scope-change --preview` to review.")
   process.exit(0)

@@ -39,7 +39,7 @@ Queued requests live in `state.execution.pendingScopeChanges[]`.
 4. User previews the PRD delta.
 5. User confirms apply or reject.
 6. PRD is updated.
-7. `syncExecutionFromPrd()` / `bun harness:sync-backlog` refreshes execution state.
+7. `bun harness:scope-change --apply` runs `syncExecutionFromPrd()` and refreshes backlog/progress automatically. Use `bun harness:sync-backlog` only after direct manual PRD edits.
 8. New milestones/tasks become eligible on a later dispatch cycle.
 
 ## Preview Output

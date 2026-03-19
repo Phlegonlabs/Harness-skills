@@ -231,8 +231,9 @@ bun harness:audit
 \`\`\`
 
 This workspace is monorepo-first. Keep adding new surfaces inside the same repository as later milestones.
+Use \`bun .harness/orchestrator.ts\` when you want a read-only preview of the next agent or task packet. Use \`bun harness:orchestrate --json\` when the parent runtime needs the machine-readable launch cycle from \`.harness/launches/latest.json\`.
 Do not bootstrap product frameworks such as Next.js, Tauri, or provider SDK stacks during scaffold setup. Introduce them only inside milestone tasks.
-If product scope changes inside the current delivery version, update the PRD first and run \`bun harness:sync-backlog\`.
+If product scope changes inside the current delivery version, update the PRD first. Use \`bun harness:scope-change --apply\` for queued changes because it syncs backlog/progress automatically, or run \`bun harness:sync-backlog\` after direct manual PRD edits.
 If the next delivery version is being promoted after deploy / real-world review, update PRD / Architecture and run \`bun harness:stage --promote V[N]\`.
 
 - \`apps/\`: current surfaces -> ${ctx.workspaceList.join(", ")}
@@ -265,6 +266,8 @@ bun harness:audit
 \`\`\`
 
 After these steps, continue from \`docs/PROGRESS.md\`, \`docs/progress/\`, and \`.harness/state.json\`.
+Use \`bun .harness/orchestrator.ts\` for read-only routing preview; use \`bun harness:orchestrate --json\` when the parent runtime should consume a real launch cycle and lifecycle commands.
+\`bun harness:scope-change --apply\` automatically re-syncs backlog/progress after a queued scope change; manual \`bun harness:sync-backlog\` is for direct PRD edits.
 \`.env.local\` is already scaffolded for local use, but framework-specific variables should be added only when the relevant milestone task introduces that framework.${skillLine}`
 }
 
@@ -319,7 +322,7 @@ Runtime auto-dispatch currently covers \`project-discovery\`, \`MARKET_RESEARCH\
 After an interactive phase is complete, advance the lifecycle with \`bun harness:advance\`.
 \`bun harness:autoflow\` advances only after the current phase's required outputs exist; if scaffold artifacts are missing, it stops and surfaces the missing phase work instead of skipping ahead. During \`EXECUTING\`, it auto-compacts and merges \`REVIEW\` milestones. When the current delivery version is fully merged, it stops at a deploy review gate instead of auto-starting the next version.
 Use \`bun harness:stage --status\` to inspect the current delivery roadmap. After deploy / real-world review, update PRD / Architecture and run \`bun harness:stage --promote V[N]\` to activate the next version.
-If product scope changes inside the current delivery version, update the PRD first and run \`bun harness:sync-backlog\` before implementing the new work.
+If product scope changes inside the current delivery version, update the PRD first. \`bun harness:scope-change --apply\` already syncs backlog/progress for queued changes; use \`bun harness:sync-backlog\` only after direct PRD edits.
 During scaffold setup, do not pre-install project frameworks such as Next.js or Tauri; add them later inside milestone tasks.
 
 ## Quick Start

@@ -149,6 +149,7 @@ When parallel execution is enabled:
 - Scoped-write batches require disjoint `affectedFiles`.
 - Worktree-isolated writes use separate milestone worktrees.
 - `dispatchParallel()` is planning-only; `bun harness:orchestrate --parallel` owns actual spawn/wait/close behavior.
+- Each launch cycle is persisted under `.harness/launches/`, and the parent runtime must drive `--confirm`, `--rollback`, or `--release` to keep child lifecycle state aligned.
 
 ## Core Invariants
 

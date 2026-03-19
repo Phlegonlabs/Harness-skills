@@ -423,6 +423,100 @@ test("autoflow stops at deploy review when the current delivery version is fully
   expect(runGit(["branch", "--list", "milestone/m1-foundation"]).output).toBe("")
 })
 
+test("autoflow runs final compact before stopping in COMPLETE", async () => {
+  write(".harness/compact.ts", readFileSync(COMPACT_SCRIPT_SOURCE, "utf-8"))
+  write(
+    "package.json",
+    JSON.stringify(
+      {
+        name: "complete-closeout-fixture",
+        private: true,
+        scripts: {
+          "harness:compact": "bun .harness/compact.ts",
+          "harness:compact:status": "bun .harness/compact.ts --status",
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  )
+  write("docs/PRD.md", "# PRD\n> **Version**: v1.0\n")
+  write("docs/ARCHITECTURE.md", "# Architecture\n> **Version**: v1.0\n")
+  write("docs/PROGRESS.md", "# Progress\n")
+
+  const state = initState({})
+  state.phase = "COMPLETE"
+  state.projectInfo.name = "complete-closeout-fixture"
+  state.projectInfo.displayName = "Complete Closeout Fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+  state.docs.architecture.exists = true
+  state.docs.readme.isFinal = true
+  state.techStack.confirmed = true
+  writeProjectStateToDisk(state, ".harness/state.json")
+
+  const exitCode = await runAutoflow()
+  expect(exitCode).toBe(0)
+
+  const snapshotPath = join(workspaceDir, "docs/progress/CONTEXT_SNAPSHOT.md")
+  expect(existsSync(snapshotPath)).toBe(true)
+  expect(readFileSync(snapshotPath, "utf-8")).toContain("> Mode: task")
+})
+
+test("completeTask auto-writes a task-level context snapshot when compact runtime is present", () => {
+  write(".harness/compact.ts", readFileSync(COMPACT_SCRIPT_SOURCE, "utf-8"))
+  write("docs/PROGRESS.md", "# Progress\n")
+  write("baseline.txt", "main\n")
+
+  const state = createAtomicCommitState()
+  state.execution.milestones[0]!.tasks[0]!.checklist = {
+    prdDodMet: false,
+    typecheckPassed: true,
+    lintPassed: true,
+    formatPassed: true,
+    testsPassed: true,
+    buildPassed: true,
+    fileSizeOk: true,
+    noForbiddenPatterns: true,
+    dependencyChangeApproved: true,
+    atomicCommitDone: false,
+    progressUpdated: false,
+  }
+  writeProjectStateToDisk(state, ".harness/state.json")
+
+  expect(runGit(["init", "-b", "main"]).ok).toBe(true)
+  expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
+  expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["add", "."]).ok).toBe(true)
+  expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
+
+  expect(runGit(["checkout", "-b", "milestone/m1-foundation"]).ok).toBe(true)
+  write("one.txt", "first and only change\n")
+  expect(runGit(["add", "one.txt"]).ok).toBe(true)
+  expect(
+    runGit([
+      "commit",
+      "-m",
+      "feat(T101): ship atomic task",
+      "-m",
+      "Closes: PRD#F101",
+      "-m",
+      "Code Review: ✅",
+    ]).ok,
+  ).toBe(true)
+
+  const head = runGit(["rev-parse", "HEAD"])
+  expect(head.ok).toBe(true)
+
+  completeTask("T101", head.output)
+
+  const snapshotPath = join(workspaceDir, "docs/progress/CONTEXT_SNAPSHOT.md")
+  expect(existsSync(snapshotPath)).toBe(true)
+  const snapshot = readFileSync(snapshotPath, "utf-8")
+  expect(snapshot).toContain("> Mode: task")
+  expect(snapshot).toContain("## 🔴 RETAIN — Must Keep")
+})
+
 test("completeTask rejects multi-commit task histories", () => {
   write("docs/PROGRESS.md", "# Progress\n")
   write("baseline.txt", "main\n")

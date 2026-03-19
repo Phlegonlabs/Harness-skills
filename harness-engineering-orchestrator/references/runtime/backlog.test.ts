@@ -211,3 +211,158 @@ test("syncExecutionFromPrd rejects scaffold placeholder planning docs", () => {
 
   expect(() => syncExecutionFromPrd(state)).toThrow(/Planning docs are still using scaffold placeholder content/i)
 })
+
+test("syncExecutionFromPrd reopens a deploy-review stage when new remediation scope is added", () => {
+  writePlanningDocs(
+    [
+      "> **Version**: v1.0",
+      "",
+      "## Product Stage V1: Initial Delivery [DEPLOY_REVIEW]",
+      "### Milestone 1: Foundation",
+      "#### F001: Ship foundation",
+      "- [ ] finish setup",
+      "",
+      "### Milestone 2: Remediation",
+      "#### F002: Patch post-release issue",
+      "- [ ] fix the regression",
+      "",
+    ].join("\n"),
+  )
+
+  const state = initState({})
+  state.phase = "COMPLETE"
+  state.projectInfo.name = "deploy-review-reopen-fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+  state.docs.architecture.exists = true
+  state.roadmap.currentStageId = "V1"
+  state.roadmap.stages = [
+    {
+      id: "V1",
+      name: "Initial Delivery",
+      status: "DEPLOY_REVIEW",
+      milestoneIds: ["M1"],
+      prdVersion: "v1.0",
+      architectureVersion: "v1.0",
+      deployReviewStartedAt: "2026-03-18T10:00:00.000Z",
+    },
+  ]
+  state.execution.milestones = [
+    {
+      id: "M1",
+      name: "Foundation",
+      productStageId: "V1",
+      branch: "milestone/m1-foundation",
+      worktreePath: "../deploy-review-reopen-fixture-m1",
+      status: "MERGED",
+      mergeCommit: "abc1234",
+      tasks: [
+        {
+          id: "T001",
+          name: "Ship foundation",
+          type: "TASK",
+          status: "DONE",
+          prdRef: "PRD#F001",
+          milestoneId: "M1",
+          dod: ["finish setup"],
+          isUI: false,
+          affectedFiles: ["src/app"],
+          retryCount: 0,
+          commitHash: "abc1234",
+        },
+      ],
+    },
+  ]
+  state.execution.allMilestonesComplete = true
+
+  const result = syncExecutionFromPrd(state)
+
+  expect(result.addedMilestones).toBe(1)
+  expect(result.addedTasks).toBe(1)
+  expect(result.state.phase).toBe("EXECUTING")
+  expect(result.state.roadmap.currentStageId).toBe("V1")
+  expect(result.state.roadmap.stages[0]?.status).toBe("ACTIVE")
+  expect(result.state.roadmap.stages[0]?.deployReviewStartedAt).toBeUndefined()
+  expect(result.state.execution.currentMilestone).toBe("M2")
+  expect(result.state.execution.currentTask).toBe("T002")
+  expect(result.state.execution.milestones[1]?.status).toBe("IN_PROGRESS")
+})
+
+test("syncExecutionFromPrd preserves explicit PRD task metadata used by scope-change deltas", () => {
+  writePlanningDocs(
+    [
+      "### Milestone 1: Follow-up Fixes",
+      "#### F001: Patch the regression",
+      "- [ ] validate the patched behavior",
+      "**UI Task:** Yes",
+      "**Affected Files:** src/follow-up, tests/follow-up",
+      "**Depends On:** T001, T002",
+      "",
+    ].join("\n"),
+  )
+
+  const state = initState({})
+  state.phase = "EXECUTING"
+  state.projectInfo.name = "scope-metadata-fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+  state.docs.architecture.exists = true
+
+  const result = syncExecutionFromPrd(state)
+  const task = result.state.execution.milestones[0]?.tasks[0]
+
+  expect(task?.isUI).toBe(true)
+  expect(task?.affectedFiles).toEqual(["src/follow-up", "tests/follow-up"])
+  expect(task?.dependsOn).toEqual(["T001", "T002"])
+})
+
+test("syncExecutionFromPrd refreshes explicit dependency metadata on existing tasks", () => {
+  writePlanningDocs(
+    [
+      "### Milestone 1: Foundation",
+      "#### F001: Ship foundation",
+      "- [ ] finish setup",
+      "**Depends On:** T000",
+      "",
+    ].join("\n"),
+  )
+
+  const state = initState({})
+  state.phase = "EXECUTING"
+  state.projectInfo.name = "existing-metadata-fixture"
+  state.projectInfo.types = ["cli"]
+  state.docs.prd.exists = true
+  state.docs.architecture.exists = true
+  state.execution.currentMilestone = "M1"
+  state.execution.currentTask = "T001"
+  state.execution.currentWorktree = "../existing-metadata-fixture-m1"
+  state.execution.milestones = [
+    {
+      id: "M1",
+      name: "Foundation",
+      productStageId: "V1",
+      branch: "milestone/m1-foundation",
+      worktreePath: "../existing-metadata-fixture-m1",
+      status: "IN_PROGRESS",
+      tasks: [
+        {
+          id: "T001",
+          name: "Ship foundation",
+          type: "TASK",
+          status: "IN_PROGRESS",
+          prdRef: "PRD#F001",
+          milestoneId: "M1",
+          dod: ["finish setup"],
+          isUI: false,
+          affectedFiles: ["src/app"],
+          retryCount: 0,
+        },
+      ],
+    },
+  ]
+
+  const result = syncExecutionFromPrd(state)
+  const task = result.state.execution.milestones[0]?.tasks[0]
+
+  expect(task?.dependsOn).toEqual(["T000"])
+})

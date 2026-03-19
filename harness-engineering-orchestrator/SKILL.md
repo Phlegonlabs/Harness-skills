@@ -171,7 +171,7 @@ When this skill runs, act as the **Orchestrator**.
 - Treat `docs/PRD.md` and `docs/ARCHITECTURE.md` as the only planning source of truth
 - Advance phases through the runtime (`bun harness:advance` or the underlying `.harness/*` scripts); do not fake completion
 - `bun harness:autoflow` may only advance after the current phase's required outputs exist on disk; missing scaffold/runtime artifacts must keep the workflow on the current phase
-- If the user adds scope outside the current task or milestone, write it back into the PRD first, then run `bun harness:sync-backlog` before any implementation starts. For structured scope changes, see [references/scope-change-protocol.md](./references/scope-change-protocol.md)
+- If the user adds scope outside the current task or milestone, write it back into the PRD first. Manual PRD edits still require `bun harness:sync-backlog`; `bun harness:scope-change --apply` now performs the PRD update plus backlog/progress sync in one step. For structured scope changes, see [references/scope-change-protocol.md](./references/scope-change-protocol.md)
 - When `pendingScopeChanges` exist with `status: "pending"`, surface them before dispatching any agent
 - Read only the agent or reference file needed for the current step
 - Default the conversation to milestone and task progress, not long file inventories
@@ -647,7 +647,12 @@ bun harness:validate --milestone M[N]       # Validate a specific milestone
 bun harness:guardian                        # Alias for bun harness:validate --guardian
 bun harness:compact                         # Generate context snapshot
 bun harness:orchestrator                    # Preferred package-script alias for bun .harness/orchestrator.ts
-bun harness:orchestrate                     # Execute one parent-owned child launch cycle
+bun harness:orchestrate                     # Prepare and reserve one parent-owned child launch cycle
+bun harness:orchestrate --json              # Emit launch-cycle JSON and persist .harness/launches/latest.json
+bun harness:orchestrate --confirm <id> --handle <runtimeHandle>  # Confirm a spawned child handle
+bun harness:orchestrate --rollback <id> --reason "<why>"         # Roll back a failed launch reservation
+bun harness:orchestrate --release <id>                           # Clear a finished child reservation
+bun harness:orchestrate --no-reserve              # Preview launch cycle without reserving activeAgents[]
 bun .harness/orchestrator.ts                # Direct orchestrator entry point
 bun .harness/orchestrator.ts --status       # Show orchestrator status
 bun .harness/orchestrator.ts --next         # Output only the next agent/action
@@ -674,7 +679,10 @@ bun harness:scope-change --apply            # Apply confirmed scope changes
 bun harness:scope-change --urgent           # Mark scope change as urgent priority
 bun harness:scope-change --milestone M[N]   # Target specific milestone for scope change
 bun harness:scope-change --reject <id>      # Reject a queued scope change
+bun harness:scope-change --from-stdin             # Read scope change request from stdin
 bun .harness/orchestrator.ts --parallel     # Preview parallel-eligible dispatches
 bun harness:orchestrate --parallel          # Execute one parent-owned parallel launch cycle
 bun .harness/orchestrator.ts --packet-json  # Output agent task packet as JSON
 ```
+
+`bun .harness/orchestrator.ts` remains planning-only. `bun harness:orchestrate` is the stateful launcher boundary: it writes `.harness/launches/*.json`, reserves `execution.activeAgents[]` when needed, and exposes `--confirm`, `--rollback`, and `--release` so the parent runtime can keep child lifecycle state aligned with the repository.

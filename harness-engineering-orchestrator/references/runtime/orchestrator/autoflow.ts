@@ -133,6 +133,7 @@ export async function runAutoflow(): Promise<number> {
       }
 
       case "COMPLETE": {
+        if (!(await runCommand("bun harness:compact", ["run", "harness:compact"]))) return 1
         if (!(await runCommand("bun harness:compact:status", ["run", "harness:compact:status"]))) return 1
         return stopAtBoundary(state)
       }

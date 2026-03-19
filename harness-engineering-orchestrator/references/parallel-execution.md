@@ -81,12 +81,17 @@ Execution surface:
 
 ```bash
 bun harness:orchestrate --parallel
+bun harness:orchestrate --parallel --json
+bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>
+bun harness:orchestrate --rollback <launchId> --reason "<why>"
+bun harness:orchestrate --release <launchId>
 ```
 
 Rules:
 
 - `dispatchParallel()` computes candidate dispatches, packets, and reservation metadata.
-- The launcher consumes that plan, spawns children, waits or defers according to policy, verifies postconditions, and closes children.
+- The launcher consumes that plan, writes `.harness/launches/<cycleId>.json`, and updates `.harness/launches/latest.json`.
+- The parent runtime spawns children from that launch cycle, waits or defers according to policy, verifies postconditions, and closes children.
 - Hooks remain guardrails only.
 
 ## Platform Launch Behavior
@@ -122,8 +127,10 @@ Parallel milestones require separate git worktrees.
 
 ## Lifecycle Management
 
-- `registerActiveAgent()` reserves scope and increments `stateVersion`.
-- `deregisterActiveAgent()` removes the reservation after close/integration.
+- `bun harness:orchestrate --parallel` reserves scope in `execution.activeAgents[]` before parent-owned spawn.
+- `bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>` binds the real child handle and marks the reservation `running`.
+- `bun harness:orchestrate --rollback <launchId> --reason "<why>"` removes the reservation and restores the task snapshot from before launch.
+- `bun harness:orchestrate --release <launchId>` removes the reservation after close/integration.
 - Stale agents older than twice their timeout are cleaned up automatically.
 - Spawn failure must roll back the reservation.
 

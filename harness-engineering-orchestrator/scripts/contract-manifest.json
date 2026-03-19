@@ -69,6 +69,7 @@
     ".harness/state.ts",
     ".harness/validate.ts",
     ".harness/orchestrator.ts",
+    ".harness/orchestrate.ts",
     ".harness/stage.ts",
     ".harness/compact.ts",
     ".harness/add-surface.ts",

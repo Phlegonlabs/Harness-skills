@@ -36,7 +36,7 @@ git diff --check                                  # Check for whitespace errors
 
 - `SKILL.md` frontmatter (`name`, `description`) is the skill's public contract — keep it accurate
 - Agent specs in `agents/` follow the structure in `references/agents-md-template.md`
-- Template variables use `{{UPPER_SNAKE_CASE}}` syntax
+- Template variables use `[UPPER_SNAKE_CASE]` syntax
 - Type definitions live in `references/harness-types.ts` — import from there, do not redeclare
 
 ## Dependency Direction

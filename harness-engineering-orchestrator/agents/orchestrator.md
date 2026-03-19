@@ -142,9 +142,13 @@ Stateful launch surface:
 ```bash
 bun harness:orchestrate
 bun harness:orchestrate --parallel
+bun harness:orchestrate --json
+bun harness:orchestrate --confirm <launchId> --handle <runtimeHandle>
+bun harness:orchestrate --rollback <launchId> --reason "<why>"
+bun harness:orchestrate --release <launchId>
 ```
 
-CLI flags:
+Planner flags:
 
 | Flag | Purpose |
 |------|---------|
@@ -156,9 +160,21 @@ CLI flags:
 | `--packet-json` | Output the raw agent task packet |
 | `--auto` | Run the underlying autoflow loop |
 
+Launcher flags:
+
+| Flag | Purpose |
+|------|---------|
+| `--json` | Emit a machine-readable launch cycle and write `.harness/launches/latest.json` |
+| `--parallel` | Prepare one parallel launch cycle instead of a single launch |
+| `--no-reserve` | Preview the launch cycle without writing `execution.activeAgents[]` reservations |
+| `--confirm <launchId> --handle <runtimeHandle>` | Bind a spawned child handle and move its reservation to `running` |
+| `--rollback <launchId> --reason "<why>"` | Remove a failed launch reservation and restore the pre-launch task snapshot |
+| `--release <launchId>` | Clear a finished reservation after integration / closeout |
+
 Rules:
 
 - `bun .harness/orchestrator.ts --parallel` is a read-only planning surface.
+- `bun harness:orchestrate` writes the launch protocol to `.harness/launches/<cycleId>.json` and updates `.harness/launches/latest.json`.
 - `bun harness:orchestrate --parallel` owns child spawn, wait/follow-up policy, result verification, and child close.
 - Register `execution.activeAgents[]` reservations before or at spawn time and roll them back if spawn fails.
 - Verify success from state/filesystem evidence, not child self-report alone.
@@ -183,7 +199,7 @@ When new scope appears during execution:
 3. Preview with `bun harness:scope-change --preview`.
 4. Apply with `bun harness:scope-change --apply` only after confirmation.
 5. Reject with `bun harness:scope-change --reject <id>` when needed.
-6. Run `bun harness:sync-backlog` after PRD updates are applied.
+6. `bun harness:scope-change --apply` syncs backlog/progress automatically; manual `bun harness:sync-backlog` is only needed after direct PRD edits.
 
 Rules:
 

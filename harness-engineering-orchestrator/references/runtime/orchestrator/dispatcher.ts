@@ -43,6 +43,12 @@ interface EligibleTaskCandidate {
   task: Task
 }
 
+function getLiveActiveAgents(state: ProjectState): ActiveAgent[] {
+  return (state.execution.activeAgents ?? []).filter(
+    agent => agent.status !== "completed" && agent.status !== "closing",
+  )
+}
+
 function cleanupStaleActiveAgents(state: ProjectState, now = Date.now()): void {
   if (!state.execution.activeAgents?.length) return
 
@@ -115,19 +121,40 @@ function createActiveAgent(
   task: Task,
   platform: AgentPlatform,
   policy: SubagentDispatchPolicy,
+  launchId?: string,
 ): ActiveAgent {
   return {
     agentId: `${agentId}:${task.id}`,
+    launchId,
     logicalAgentId: agentId,
     milestoneId: milestone.id,
     taskId: task.id,
     worktreePath: milestone.worktreePath,
-    runtimeHandle: `pending:${agentId}:${task.id}`,
+    runtimeHandle: launchId ? `pending:${launchId}` : `pending:${agentId}:${task.id}`,
     nativeRole: policy.nativeRole,
     ownershipScope: buildOwnershipScope(agentId, milestone, task),
-    status: "running",
+    status: "waiting",
     startedAt: new Date().toISOString(),
     platform,
+  }
+}
+
+export interface TaskLaunchMetadata {
+  activeAgent: ActiveAgent
+  subagentPolicy: SubagentDispatchPolicy
+}
+
+export function buildTaskLaunchMetadata(
+  agentId: AgentId,
+  milestone: Milestone,
+  task: Task,
+  platform: AgentPlatform,
+  launchId?: string,
+): TaskLaunchMetadata {
+  const subagentPolicy = getSubagentDispatchPolicy(agentId, milestone, task)
+  return {
+    activeAgent: createActiveAgent(agentId, milestone, task, platform, subagentPolicy, launchId),
+    subagentPolicy,
   }
 }
 
@@ -242,6 +269,21 @@ function getExecutingAction(state: ProjectState, platform: AgentPlatform): Dispa
       "Deploy and test the current version in the real environment.\n" +
       "If no next stage is planned, run:\n" +
       "  bun harness:advance"
+    )
+  }
+
+  const liveAgents = getLiveActiveAgents(state)
+  if (liveAgents.length > 0) {
+    const agentSummary = liveAgents
+      .map(agent =>
+        `- ${agent.launchId ?? agent.agentId}: ${agent.logicalAgentId} on ${agent.taskId} (${agent.status})`,
+      )
+      .join("\n")
+
+    return manualGuidance(
+      "Child launches are already active for this execution state.\n" +
+      `${agentSummary}\n` +
+      "Use bun harness:orchestrate lifecycle commands to confirm, release, or roll back those launches before dispatching new work.",
     )
   }
 
@@ -483,9 +525,7 @@ function getValidatingAction(state: ProjectState, platform: AgentPlatform): Disp
 function getEligibleTasks(state: ProjectState): EligibleTaskCandidate[] {
   const eligible: EligibleTaskCandidate[] = []
   const allTasks = state.execution.milestones.flatMap(m => m.tasks)
-  const activeAgents = (state.execution.activeAgents ?? []).filter(
-    agent => agent.status !== "completed" && agent.status !== "closing",
-  )
+  const activeAgents = getLiveActiveAgents(state)
   const activeTaskIds = new Set(activeAgents.map(a => a.taskId))
   const activeFiles = new Set(activeAgents.flatMap(a => a.ownershipScope))
 
@@ -592,9 +632,7 @@ export function dispatchParallel(
   const dispatches: DispatchResult[] = []
   const milestonesWithPendingDesign = new Set<string>()
   const activeMilestoneIds = new Set(
-    (state.execution.activeAgents ?? [])
-      .filter(agent => agent.status !== "completed" && agent.status !== "closing")
-      .map(agent => agent.milestoneId),
+    getLiveActiveAgents(state).map(agent => agent.milestoneId),
   )
   const reservedMilestoneIds = new Set(activeMilestoneIds)
 
@@ -625,8 +663,12 @@ export function dispatchParallel(
 
     const packet = buildAgentTaskPacketForTask(agentId, state, milestone, task, platform)
     const context = renderAgentTaskPacket(packet)
-    const subagentPolicy = getSubagentDispatchPolicy(agentId, milestone, task)
-    const activeAgent = createActiveAgent(agentId, milestone, task, platform, subagentPolicy)
+    const { activeAgent, subagentPolicy } = buildTaskLaunchMetadata(
+      agentId,
+      milestone,
+      task,
+      platform,
+    )
 
     dispatches.push({
       type: "agent",
