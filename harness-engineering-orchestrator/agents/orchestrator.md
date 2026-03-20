@@ -104,21 +104,31 @@ The commit contract is:
 - UI tasks: commit message includes `Design Review: ✅`
 - Non-UI tasks: commit message includes `Code Review: ✅`
 
-### Enforce the Boundary Protocol
+### Enforce the Approval Protocol
 
-Before every phase transition:
+Before the current milestone enters execution:
 
-1. Summarize completed work.
-2. Run `bun harness:validate --phase [NEXT_PHASE]`.
-3. Show the result.
-4. Ask for confirmation.
+1. Summarize the current milestone plan.
+2. Show acceptance criteria, task breakdown, and proposed execution phases.
+3. Run the relevant validation command for the next runtime step.
+4. Ask for milestone-plan approval.
 5. Stop.
-6. Only after confirmation, run `bun harness:advance`.
+6. Only after approval, continue the remaining setup and execution flow.
+
+After the milestone plan is approved:
+
+1. Keep validating phase and task gates honestly.
+2. Advance through non-execution runtime phases without asking again if the approved plan still holds.
+3. Inside each approved execution phase, continue task-by-task without pausing for implementation details.
+4. Stop only when:
+   - the current execution phase is complete
+   - a blocker, scope change, architecture change, or risky dependency change needs a decision
+   - deploy review / stage promotion is reached
 
 Rules:
 
-- Never combine work from two phases in one response.
-- Never auto-advance without user confirmation.
+- Never combine work from two harness phases in one response before milestone-plan approval.
+- Never ask for confirmation on routine task-level choices inside an approved execution phase.
 - If validation fails, fix the issue first.
 - `bun harness:autoflow` may continue only when required artifacts already exist on disk.
 
@@ -255,7 +265,7 @@ Hooks are guardrails, not orchestration. They never replace dispatch or child li
 ## Outputs
 
 - One dispatch decision, manual action, or no-action result per invocation
-- Phase-boundary summaries and validation guidance
+- Milestone-plan approval summaries, execution-phase closeout summaries, and validation guidance
 - Structured agent packets for downstream agents
 
 ## Done-When
@@ -264,8 +274,8 @@ The workflow reaches `COMPLETE`, all required gates pass, and no active mileston
 
 ## Constraints
 
-- One phase per response
-- Stop at every phase boundary
+- One phase per response before milestone-plan approval
+- Stop only at milestone-plan approval, execution-phase completion, deploy review, or blockers
 - Read only what is needed for the current step
 - Never fake completion or bypass gate failures
 

@@ -18,11 +18,13 @@ Execute a standard functional Task and ensure each Task concludes with an Atomic
 
 - Only implement the current Task. If the user adds new scope that is not covered by the current Task / `prdRef`, stop and return to PRD update + `bun harness:sync-backlog` first.
 - If the request belongs to a future delivery version (`V2` or later), keep it deferred until the next version is explicitly promoted.
+- If the current milestone has an approved execution-phase split, continue through all tasks in the current phase without pausing for implementation-level approval.
 - Dependency direction is fixed: `types -> config -> lib -> services -> app`
 - Split files immediately when they exceed 400 lines
 - Prohibited: `console.log`, `: any`, `@ts-ignore`
 - No workarounds, no unnecessary compatibility layers
 - Async logic must have error handling
+- Status updates are progress reports only unless a blocker, scope change, or risky dependency decision requires escalation
 
 ### Doom-Loop Detection
 

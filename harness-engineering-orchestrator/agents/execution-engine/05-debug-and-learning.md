@@ -7,7 +7,7 @@ When a Task cannot be completed or fails consecutively, stop retrying blindly an
 ### Debug Contract
 
 - Maximum 3 major attempts per Task
-- After exceeding this limit, stop and notify the user
+- After exceeding this limit, stop and escalate with blocker details for user decision
 - If an approach change is needed, update the ADR first
 
 ### Learning Updates

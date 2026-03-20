@@ -44,7 +44,7 @@ Within about a minute, you should have a repo with:
 - Inputs: a project idea or an existing repository
 - Outputs: `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/PROGRESS.md`, `.harness/state.json`, milestone/task backlog, scaffold, validation state
 - Best for: greenfield bootstraps, existing repo hydration, milestone-driven delivery, staged `V1 -> deploy review -> V2` execution
-- Control model: phase gates, guardian checks, orchestrator-owned dispatch, repo-backed state
+- Control model: milestone-plan approval, phase/task gates, guardian checks, orchestrator-owned dispatch, repo-backed state
 
 ## Install in 30 Seconds
 
@@ -86,13 +86,13 @@ Harness Engineering and Orchestrator makes the repository itself the working mem
 
 The skill operates at three levels of ceremony, auto-detected or user-specified:
 
-| Level | Best For | Discovery | Checkpoints | Guardians |
-|-------|----------|-----------|-------------|-----------|
-| **Lite** | Small projects, prototypes | Batch 1-2 Qs/turn | 1 (Fast Path) | Core 7 (G1,G3,G4,G6,G8,G9,G11) |
-| **Standard** | Most projects (default) | Groups 2-3 Qs/turn | 4 | 11 (G1-G11, G12 active) |
-| **Full** | Enterprise / compliance | Sequential Q0-Q9 | All boundaries | All 12 (G1-G12) |
+| Level | Best For | Discovery | Approval Stops | Guardians |
+|-------|----------|-----------|----------------|-----------|
+| **Lite** | Small projects, prototypes | Batch 1-2 Qs/turn | Fast Path summary, execution phase completion, blockers | Core 7 (G1,G3,G4,G6,G8,G9,G11) |
+| **Standard** | Most projects (default) | Groups 2-3 Qs/turn | Milestone plan approval, execution phase completion, blockers | 11 (G1-G11, G12 active) |
+| **Full** | Enterprise / compliance | Sequential Q0-Q9 | Milestone plan approval, execution phase completion, blockers, deploy review | All 12 (G1-G12) |
 
-Level is auto-detected or user-specified. Upgrade mid-project with backfill. See [SKILL.md](./SKILL.md#harness-levels) for the full checkpoint matrix and [references/level-upgrade-backfill.md](./references/level-upgrade-backfill.md) for upgrade protocol.
+Level is auto-detected or user-specified. Upgrade mid-project with backfill. See [SKILL.md](./SKILL.md#harness-levels) for the full approval-stop model and [references/level-upgrade-backfill.md](./references/level-upgrade-backfill.md) for upgrade protocol.
 
 ## Install
 
@@ -293,7 +293,7 @@ Use this as the practical runbook from project start to project finish.
 
 2. Complete discovery and early planning phases in order.
    - Move through `DISCOVERY`, `MARKET_RESEARCH`, and `TECH_STACK`
-   - At each boundary, run `bun harness:validate --phase <NEXT_PHASE>` and then `bun harness:advance`
+   - Validate honestly at each boundary, but use one milestone-plan approval instead of asking for confirmation at every phase boundary
 
 3. Write the real PRD and Architecture.
    - Fill `docs/PRD.md` and `docs/ARCHITECTURE.md` with real project content
@@ -302,7 +302,7 @@ Use this as the practical runbook from project start to project finish.
 4. Finish scaffold and enter execution.
    - Make sure runtime files, CI, env skeleton, and local Harness files are present
    - Run `bun install`
-   - Run `bun harness:advance` to derive the execution backlog from the active stage in the PRD
+   - If the milestone plan is already approved and `bun harness:validate --phase EXECUTING` passes, run `bun harness:advance` to derive the execution backlog from the active stage in the PRD
 
 5. Use the orchestrator as the control tower.
    - Run `bun harness:orchestrator` (or `bun .harness/orchestrator.ts`)
@@ -311,8 +311,9 @@ Use this as the practical runbook from project start to project finish.
    - Use `bun harness:orchestrate --parallel` only when you want the parent runtime to actually launch that batch
    - Use `bun harness:orchestrate --json` when the parent runtime needs the launch cycle, lifecycle commands, and reservation metadata in machine-readable form
 
-6. Execute one task at a time.
+6. Execute one approved execution phase at a time.
    - The current task must match its `prdRef`
+   - Group tasks according to the approved milestone plan; if no split was approved, treat the whole milestone as one execution phase
    - UI tasks go through Frontend Designer -> Execution Engine -> Design Reviewer
    - Non-UI tasks go through Execution Engine -> Code Reviewer
 

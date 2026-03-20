@@ -26,7 +26,7 @@ Which Harness level should this project use?
 
 1. Lite — minimal overhead, fast bootstrap
 2. Standard — balanced default
-3. Full — comprehensive, checkpoint-heavy
+3. Full — comprehensive, question-heavy
 ```
 
 If the user does not specify, auto-detect from project scope, team size, and compliance signals before continuing.

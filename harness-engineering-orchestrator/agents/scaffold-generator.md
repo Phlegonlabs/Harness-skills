@@ -82,8 +82,8 @@ After all groups are verified:
 
 1. Present the **Scaffold Verification Checklist** with pass/fail for each item
 2. Show the `bun harness:validate --phase EXECUTING` result
-3. Ask: "Scaffold is complete. Ready to enter EXECUTING?"
-4. STOP. Wait for user confirmation before running `bun harness:advance`.
+3. If the current milestone plan was already approved, continue directly into `EXECUTING`
+4. Stop only if scaffold output materially deviates from the approved plan or validation fails
 
 ## Outputs
 

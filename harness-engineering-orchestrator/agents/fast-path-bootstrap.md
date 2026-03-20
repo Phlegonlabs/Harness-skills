@@ -89,9 +89,9 @@ When confidence is below the threshold:
 3. Offer a reasonable default the user can accept with a single confirmation
 4. Do not proceed to Turn 2 until all Low-confidence fields are resolved
 
-### User Confirmation Gate
+### Milestone Plan Approval Gate
 
-Before generating any artifacts (PRD, Architecture, scaffold), the full inferred metadata must be presented to the user in a summary block. The user must explicitly confirm or correct the summary before generation proceeds. This gate cannot be skipped even if all fields are High confidence.
+Before generating any artifacts (PRD, Architecture, scaffold), the full inferred metadata and proposed milestone plan must be presented to the user in a summary block. The user must explicitly approve or correct that summary before generation proceeds. This gate cannot be skipped even if all fields are High confidence.
 
 ## Interaction Framework
 
@@ -106,7 +106,7 @@ Before generating any artifacts (PRD, Architecture, scaffold), the full inferred
    - Project name and type (with confidence indicators)
    - Detected ecosystem and toolchain
    - Proposed milestone count
-7. Wait for user confirmation or corrections (User Confirmation Gate)
+7. Wait for user approval or corrections (Milestone Plan Approval Gate)
 
 ### Turn 2 — Generate and Advance
 

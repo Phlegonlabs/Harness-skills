@@ -12,5 +12,5 @@ This is the navigation entry point for Gates / Guardians. Specific rules have be
 ## Source Of Truth
 
 - Guardian: effective continuously throughout the entire process
-- Gate: phase-based progress checkpoint
+- Gate: phase/task validation boundary
 - Fence: CI / validate blocking mechanism for Guardians

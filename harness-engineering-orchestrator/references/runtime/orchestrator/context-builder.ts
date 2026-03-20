@@ -409,7 +409,7 @@ export function renderAgentTaskPacket(packet: AgentTaskPacket): string {
   lines.push(`Validation Gate: ${packet.validationCommand}`)
   if (packet.timeoutMs) {
     const minutes = Math.round(packet.timeoutMs / 60_000)
-    lines.push(`Soft Time Limit: ${minutes} min — if approaching this limit, checkpoint progress and notify the user`)
+    lines.push(`Soft Time Limit: ${minutes} min — if approaching this limit, checkpoint progress and continue unless a blocker requires the user`)
   }
   lines.push("")
 
