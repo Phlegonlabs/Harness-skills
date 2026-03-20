@@ -33,7 +33,13 @@ Prefer small, decision-clear pull requests over broad refactors.
 git diff --check
 ```
 
-If you changed `harness-engineering-orchestrator/`, run the focused runtime tests from the repo root:
+5. If you changed `harness-engineering-orchestrator/`, validate the skill contract:
+
+```bash
+node harness-engineering-orchestrator/scripts/check-skill-contract.mjs
+```
+
+If you changed `harness-engineering-orchestrator/`, also run the focused runtime tests from the repo root:
 
 ```bash
 bun test harness-engineering-orchestrator/references/runtime/backlog.test.ts
@@ -57,6 +63,10 @@ bun test harness-engineering-orchestrator/scripts/setup/core.test.ts
 - State how the change was validated.
 - Avoid documenting behavior that the runtime does not actually implement.
 - Do not weaken guardrails without making the tradeoff explicit.
+
+## Adding a New Skill
+
+See [docs/new-skill-guide.md](./docs/new-skill-guide.md) for the complete process of adding a new skill package to this repository.
 
 ## Security
 

@@ -33,12 +33,29 @@ Select scaffold templates based on the confirmed tech stack and detected ecosyst
 
 ### Group 1: Harness Runtime
 
-- [ ] `.harness/state.json`
-- [ ] `.harness/orchestrator.ts`
-- [ ] `.harness/advance.ts`
-- [ ] `.harness/compact.ts`
+The full list below matches the files copied by `copyHarnessRuntime` in `scripts/setup/core.ts` and validated by `phase-structural.ts`. All 20 runtime files plus `state.json` are required before entering EXECUTING.
+
+- [ ] `.harness/types.ts`
 - [ ] `.harness/init.ts`
+- [ ] `.harness/advance.ts`
+- [ ] `.harness/state.ts`
 - [ ] `.harness/validate.ts`
+- [ ] `.harness/orchestrator.ts`
+- [ ] `.harness/orchestrate.ts`
+- [ ] `.harness/stage.ts`
+- [ ] `.harness/compact.ts`
+- [ ] `.harness/add-surface.ts`
+- [ ] `.harness/audit.ts`
+- [ ] `.harness/sync-docs.ts`
+- [ ] `.harness/sync-skills.ts`
+- [ ] `.harness/api-add.ts`
+- [ ] `.harness/merge-milestone.ts`
+- [ ] `.harness/resume.ts`
+- [ ] `.harness/learn.ts`
+- [ ] `.harness/metrics.ts`
+- [ ] `.harness/entropy-scan.ts`
+- [ ] `.harness/scope-change.ts`
+- [ ] `.harness/state.json` (persisted runtime state)
 
 ### Group 2: Agent Specs and Config
 
@@ -95,7 +112,7 @@ After all groups are verified:
 
 - `bun harness:validate --phase EXECUTING` passes
 - The scaffold verification checklist is complete
-- The next safe step is to stop at the boundary, ask for confirmation, and then run `bun harness:advance`
+- The next safe step is `bun harness:advance`, unless scaffold drift or validation failure requires escalation
 
 ## Constraints
 

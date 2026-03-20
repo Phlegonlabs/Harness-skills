@@ -22,7 +22,7 @@ Define persistent constraints that remain effective throughout the entire proces
 
 #### G3 — No single file exceeds 400 lines
 
-- **Rule**: Every source file (`.ts`, `.tsx`) must stay at or below 400 lines.
+- **Rule**: Every source file (determined by `toolchain.sourceExtensions`) must stay at or below 400 lines.
 - **Detection**: `bun harness:validate --milestone` runs line-count checks. CI step `Check file sizes` enforces the limit.
 - **Violation handling**: Blocking — the file must be split before the task can be marked complete.
 - **Owner**: Execution Engine
