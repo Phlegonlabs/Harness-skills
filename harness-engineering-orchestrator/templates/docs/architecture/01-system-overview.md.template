@@ -2,10 +2,10 @@
 
 ### 1.1 Project Type
 - **Type**: [PROJECT_TYPE]
-- **Workspace base**: Monorepo (Bun workspaces, default)
+- **Workspace base**: [WORKSPACE_MODEL]
 - **Delivery mode**: [GREENFIELD_MODE]
 - **AI Provider**: [AI_PROVIDER]
-- **Package Manager**: Bun
+- **Package Manager**: [PACKAGE_MANAGER]
 - **Primary goal**: Enable the project to have a closed-loop for state, progress, and validation from the scaffold onward.
 
 ### 1.2 Existing Repository Signal

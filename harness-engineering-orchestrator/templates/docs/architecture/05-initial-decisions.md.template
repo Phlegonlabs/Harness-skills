@@ -1,6 +1,6 @@
 ## 5. Initial Decisions
 
-- Use Bun as the single package manager
+- Use [PACKAGE_MANAGER] as the single package manager
 - Use `.harness/*.ts` as the local runtime instead of relying on external skill paths
 - Organize PRD, Architecture, Progress, and AI operating rules using thin entry points + module directories
 - All generated files prioritize being executable, not merely described in documentation

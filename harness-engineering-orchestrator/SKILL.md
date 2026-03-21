@@ -75,6 +75,13 @@ Its job is to turn an idea or an existing codebase into a controlled delivery lo
 4. a runnable scaffold with Harness runtime files
 5. validated implementation until the project reaches `COMPLETE`
 
+### Changes in v1.8.3
+
+- Fixed guardian table in SKILL.md: G2 Full column no longer shows misleading `(from SCAFFOLD)` parenthetical; G5 Lite column corrected from `Inactive` to `Relaxed` to match `harness-types.ts` definitions
+- Removed dangling `$schema` reference in `config.example.json` pointing to non-existent `config.schema.json`
+- Parameterized hardcoded Bun references in templates: added `[PACKAGE_MANAGER]`, `[WORKSPACE_MODEL]`, and ecosystem-aware `[INSTALL_COMMAND]` so scaffolded projects display correct toolchain for all 15 supported ecosystems
+- Added clarifying comment in `package.json.template` explaining `harness:*` scripts are injected by setup at runtime
+
 ### Changes in v1.8.2
 
 - Unified the published approval model around `Project Plan -> Delivery Phase -> Milestone -> Task` across runtime docs, prompts, and generated project surfaces
@@ -600,10 +607,10 @@ These files are automatically synchronized by `harness:advance`, `harness:stage 
 | ID | Name | Description | Active From | Lite | Standard | Full |
 |----|------|-------------|-------------|------|----------|------|
 | G1 | Scope Lock | Implement only work mapped to current task and PRD reference | EXECUTING | Active (simplified) | Active | Active |
-| G2 | Branch Protection | No feature commits directly on main/master | EXECUTING | Relaxed | Active | Active (from SCAFFOLD) |
+| G2 | Branch Protection | No feature commits directly on main/master | EXECUTING | Relaxed | Active | Active |
 | G3 | File Size Limit | No single source file may exceed 400 lines | SCAFFOLD | Active | Active | Active |
 | G4 | Forbidden Patterns | No console.log, `: any`, `@ts-ignore`, or similar anti-patterns | SCAFFOLD | Active (blocking only) | Active | Active |
-| G5 | Dependency Direction | types → config → lib → services → app; reverse imports forbidden | EXECUTING | Inactive | Active | Active + CI |
+| G5 | Dependency Direction | types → config → lib → services → app; reverse imports forbidden | EXECUTING | Relaxed | Active | Active + CI |
 | G6 | Secret Prevention | No secret-like values or `.env` contents in source code | SCAFFOLD | Active | Active | Active |
 | G7 | Design Review Gate | UI tasks require Design Review approval before commit | EXECUTING | Simplified | Active | Active |
 | G8 | Agent Sync | AGENTS.md and CLAUDE.md must stay synchronized | SCAFFOLD | Active | Active | Active |

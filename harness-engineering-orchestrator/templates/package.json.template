@@ -10,6 +10,7 @@
     "packages/*"
   ],
   "scripts": {
+    "_comment": "harness:* scripts are injected by setup/core.ts updatePackageJson() at runtime — do not add them here",
     "check:deps": "dependency-cruiser --config .dependency-cruiser.cjs src --output-type err-long",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "lint": "biome check src tests",

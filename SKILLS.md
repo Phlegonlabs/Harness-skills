@@ -6,7 +6,7 @@ This repository is a multi-skill catalog. Each top-level directory ending in no 
 
 | Skill | Version | What it does | Install |
 |---|---|---|---|
-| `harness-engineering-orchestrator` | v1.8.1 | Turns an idea or existing repo into a repo-backed PRD-to-code delivery workflow with docs, runtime state, backlog, execution, and validation | `npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill harness-engineering-orchestrator` |
+| `harness-engineering-orchestrator` | v1.8.3 | Turns an idea or existing repo into a repo-backed PRD-to-code delivery workflow with docs, runtime state, backlog, execution, and validation | `npx skills add https://github.com/Phlegonlabs/Harness-Engineering-skills --skill harness-engineering-orchestrator` |
 
 ## Adding a New Skill
 

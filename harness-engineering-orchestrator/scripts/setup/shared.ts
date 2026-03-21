@@ -43,6 +43,10 @@ export type Context = {
   visibility: "public" | "private"
   skipGithub: boolean
   githubRepo: string   // "owner/repo" for existing repos, or "" for auto
+  ecosystem: string
+  packageManagerLabel: string
+  installCommand: string
+  workspaceModel: string
   existingRepoSummary: string
   existingDependencySummary: string
   existingScriptSummary: string
@@ -96,6 +100,25 @@ const DESIGN_STYLE_LABELS: Record<DesignStyle, string> = {
   professional: "Professional",
   "soft-friendly": "Soft Friendly",
   custom: "Custom",
+}
+
+// [packageManagerLabel, installCommand, workspaceModel]
+const ECOSYSTEM_TOOLCHAIN: Record<string, [string, string, string]> = {
+  "bun":           ["Bun",        "bun install",                   "Monorepo (Bun workspaces)"],
+  "node-npm":      ["npm",        "npm install",                   "Monorepo (npm workspaces)"],
+  "node-pnpm":     ["pnpm",       "pnpm install",                  "Monorepo (pnpm workspaces)"],
+  "node-yarn":     ["Yarn",       "yarn install",                  "Monorepo (Yarn workspaces)"],
+  "python":        ["pip",        "pip install -r requirements.txt","Monorepo (Python)"],
+  "go":            ["Go modules", "go mod download",               "Monorepo (Go modules)"],
+  "rust":          ["Cargo",      "cargo build",                   "Monorepo (Cargo workspace)"],
+  "kotlin-gradle": ["Gradle",     "./gradlew build",               "Monorepo (Gradle)"],
+  "java-gradle":   ["Gradle",     "./gradlew build",               "Monorepo (Gradle)"],
+  "java-maven":    ["Maven",      "mvn install",                   "Monorepo (Maven)"],
+  "ruby":          ["Bundler",    "bundle install",                "Monorepo (Bundler)"],
+  "csharp-dotnet": ["dotnet",     "dotnet restore",                "Monorepo (.NET)"],
+  "swift":         ["Swift PM",   "swift package resolve",         "Monorepo (Swift PM)"],
+  "flutter":       ["pub",        "flutter pub get",               "Monorepo (Flutter)"],
+  "custom":        ["Bun",        "bun install",                   "Monorepo (Bun workspaces)"],
 }
 
 export type SetupLogger = {
@@ -408,6 +431,9 @@ export function createContext(args: Record<string, string>, skillRoot?: string):
     : undefined
   const designReference = normalizeOptional(args.designReference, "Not provided")
   const hasAgentProject = projectTypes.includes("agent")
+  const ecosystem = args.ecosystem ?? d.ecosystem ?? "bun"
+  const [packageManagerLabel, installCommand, workspaceModel] =
+    ECOSYSTEM_TOOLCHAIN[ecosystem] ?? ECOSYSTEM_TOOLCHAIN["bun"]
   const dependencySummary = summarizeList(
     detectExistingDependencies(),
     "No dependency manifest was detected yet.",
@@ -454,6 +480,10 @@ export function createContext(args: Record<string, string>, skillRoot?: string):
     visibility: (args.visibility ?? d.visibility ?? "private") as "public" | "private",
     skipGithub: args.skipGithub !== undefined ? args.skipGithub === "true" : (d.skipGithub ?? false),
     githubRepo: args.githubRepo ?? "",
+    ecosystem,
+    packageManagerLabel,
+    installCommand,
+    workspaceModel,
     existingRepoSummary: existingRepoSummary(projectDisplayName, isGreenfield),
     existingDependencySummary: dependencySummary,
     existingScriptSummary: scriptSummary,
@@ -601,7 +631,9 @@ export function renderPlaceholders(content: string, context: Context): string {
     AUTHOR: "Harness Engineering and Orchestrator",
     VISUAL_DESIGN_CONTENT: buildVisualDesignContent(context),
     DIRECTORY_STRUCTURE: buildDirectoryStructure(context),
-    INSTALL_COMMAND: "bun install",
+    PACKAGE_MANAGER: context.packageManagerLabel,
+    WORKSPACE_MODEL: context.workspaceModel,
+    INSTALL_COMMAND: context.installCommand,
     CURRENT_PHASE: "SCAFFOLD",
     CURRENT_MILESTONE: "Not yet created",
     CURRENT_WORKTREE: `../${context.projectName}-m1`,

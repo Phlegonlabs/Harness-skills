@@ -1,6 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/Phlegonlabs/Harness-Engineering-skills/main/harness-engineering-orchestrator/config.schema.json",
-
   "defaults": {
     "harnessLevel": "standard",
     "teamSize": "small",

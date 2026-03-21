@@ -9,7 +9,7 @@
 ## Install
 
 ```bash
-bun install
+[INSTALL_COMMAND]
 ```
 
 ## Verify

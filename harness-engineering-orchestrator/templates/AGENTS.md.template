@@ -40,7 +40,7 @@ Full principles: `docs/ai/01-operating-principles.md`
 - **Starting mode**: [GREENFIELD_MODE]
 - **AI Provider**: [AI_PROVIDER]
 - **Team size**: [TEAM_SIZE]
-- **Package manager**: Bun
+- **Package manager**: [PACKAGE_MANAGER]
 - **Requirements index**: `docs/PRD.md`
 - **Architecture index**: `docs/ARCHITECTURE.md`
 - **Progress index**: `docs/PROGRESS.md`

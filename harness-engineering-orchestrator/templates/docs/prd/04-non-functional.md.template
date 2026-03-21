@@ -2,7 +2,7 @@
 
 - TypeScript strict mode
 - Single file should not exceed 400 lines by default
-- Use Bun as the package manager
+- Use [PACKAGE_MANAGER] as the package manager
 - GitBook, README, and ADR must stay in sync
 - Phase state must remain recoverable via `.harness/state.json`
 - `check:deps` must be executable both locally and in CI
@@ -11,7 +11,7 @@
 
 ## 6. Technical Constraints
 
-- **Package Manager**: Bun
+- **Package Manager**: [PACKAGE_MANAGER]
 - **Language**: TypeScript (strict)
 - **Project type**: [PROJECT_TYPE]
 - **Delivery mode**: [GREENFIELD_MODE]

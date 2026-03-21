@@ -2,11 +2,11 @@
 
 | Area | Choice |
 |------|--------|
-| Package manager | Bun |
+| Package manager | [PACKAGE_MANAGER] |
 | Language | TypeScript |
 | Workflow | Harness Engineering |
 | Project type | [PROJECT_TYPE] |
-| Workspace model | Monorepo (Bun workspaces default) |
+| Workspace model | [WORKSPACE_MODEL] |
 | Delivery mode | [GREENFIELD_MODE] |
 | AI provider | [AI_PROVIDER] |
 | Team size | [TEAM_SIZE] |
