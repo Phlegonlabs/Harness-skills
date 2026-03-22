@@ -1,0 +1,47 @@
+name: Validate
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  repo-validate:
+    name: Repo Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run repo validation
+        run: node scripts/validate-repo.mjs
+
+  setup-smoke-matrix:
+    name: Setup Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install pnpm
+        run: npm install --global pnpm
+
+      - name: Verify pnpm
+        run: pnpm --version
+
+      - name: Run setup smoke
+        run: bun test harness-engineering-orchestrator/scripts/setup/core.test.ts

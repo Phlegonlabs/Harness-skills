@@ -26,20 +26,19 @@ Prefer small, decision-clear pull requests over broad refactors.
 
 1. Keep the change scoped.
 2. Update docs if behavior changes.
-3. Run the relevant test or verification command for the skill you touched.
-4. Run:
+3. From the repo root, run the same validation chain used by the PR CI:
 
 ```bash
-git diff --check
+node scripts/validate-repo.mjs
 ```
 
-5. If you changed `harness-engineering-orchestrator/`, validate the skill contract:
+4. If you changed workflow logic, setup scaffolding, or cross-platform behavior, also run the Windows matrix manually when practical:
 
-```bash
-node harness-engineering-orchestrator/scripts/check-skill-contract.mjs
+```powershell
+pwsh -File harness-engineering-orchestrator/scripts/e2e/run-matrix.ps1
 ```
 
-If you changed `harness-engineering-orchestrator/`, also run the focused runtime tests from the repo root:
+For a faster local loop inside `harness-engineering-orchestrator/`, run focused tests from the repo root:
 
 ```bash
 bun test harness-engineering-orchestrator/references/runtime/backlog.test.ts

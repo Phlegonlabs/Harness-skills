@@ -23,14 +23,20 @@ The scaffold phase gate in `PHASE_GATES.EXECUTING` requires `scaffold.ciExists` 
 
 ## CI Workflow
 
-The generated CI workflow lives at `.github/workflows/ci.yml`. The `deriveStateFromFilesystem()` function checks for its existence and records it in `scaffold.ciExists`.
+The generated CI workflow lives at `.github/workflows/ci.yml`. `scripts/setup/core.ts` currently writes the default workspace-first template from `templates/.github/workflows/ci.yml.template`, and `deriveStateFromFilesystem()` records its presence in `scaffold.ciExists`.
 
-The standard CI pipeline runs four stages in order:
+The default workspace-first CI template runs these steps in order:
 
-1. **Lint** — `scaffold.linterConfigured` is true when `biome.json`, `.eslintrc.json`, `.eslintrc.js`, `ruff.toml`, or `pyproject.toml` exists
-2. **Test** — Uses the toolchain command from `toolchain.commands.test`
-3. **Build** — Uses the toolchain command from `toolchain.commands.build`
-4. **Dependency check** — Runs `bun run check:deps` when dependency-cruiser is configured; `dependencyCruiserValidatedInCi()` in `runtime/shared.ts` verifies both the config file and the CI workflow reference
+1. **Install dependencies** — `bun install --frozen-lockfile`
+2. **Dependency direction** — `bun run check:deps`
+3. **Type check** — `bun run typecheck`
+4. **Lint** — `bun run lint`
+5. **Format check** — `bun run format:check`
+6. **Test** — `bun run test`
+7. **Build** — `bun run build`
+8. **Audit line counts** — the template blocks oversized TypeScript source files in `apps/`, `packages/`, and `src/`
+
+Language-specific CI templates also exist under `templates/.github/workflows/`, but selecting them is not yet wired into `scripts/setup/core.ts`. Treat them as reference templates unless the setup wiring changes in the same update.
 
 ## Config Files
 

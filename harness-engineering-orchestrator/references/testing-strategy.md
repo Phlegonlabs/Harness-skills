@@ -2,7 +2,17 @@
 
 ## Overview
 
-The Harness runtime uses a layered testing approach: unit tests for individual functions, integration tests for multi-step workflows, and an end-to-end matrix for cross-platform validation.
+The Harness runtime uses a layered testing approach: repo validation for the published skill package, unit tests for individual functions, and an end-to-end matrix for cross-platform validation.
+
+## Repository Validation
+
+Run the repository validation entrypoint from the repo root:
+
+```bash
+node scripts/validate-repo.mjs
+```
+
+That command is the same chain used by PR CI. It runs `git diff --check`, the tracked Bun test suite, and the skill contract checker in one pass.
 
 ## Test Layers
 
@@ -39,27 +49,27 @@ bun test runtime/stage.test.ts
 
 The E2E matrix validates the full Harness lifecycle across multiple project types and configurations.
 
-**Location:** `e2e/run-matrix.ps1`
+**Location:** `scripts/e2e/run-matrix.ps1`
 
 **Coverage:**
 - Project type variations (web-app, CLI, API, agent)
 - Harness levels (lite, standard, full)
-- Ecosystem variations (bun, node-npm, python, go)
+- Ecosystem variations (bun, node-npm, node-pnpm)
 - Phase transitions from DISCOVERY through COMPLETE
 
 **Running the E2E matrix:**
 
 ```powershell
-./e2e/run-matrix.ps1
+pwsh -File harness-engineering-orchestrator/scripts/e2e/run-matrix.ps1
 ```
 
 ## Coverage Expectations
 
 | Layer | Target | Enforcement |
 |-------|--------|-------------|
+| Repository validation | `git diff --check`, tracked tests, skill contract | CI blocks on failure |
 | Unit tests | Critical runtime paths | CI blocks on failure |
-| Phase gate tests | All phase transitions | CI blocks on failure |
-| Validation tests | Scoring and checklist logic | CI blocks on failure |
+| Setup smoke | Cross-platform setup contract | CI blocks on failure |
 | E2E matrix | Full lifecycle | Manual / nightly |
 
 ## Writing New Tests
@@ -120,11 +130,16 @@ test("EXECUTING gate requires CI workflow", () => {
 
 ## CI Integration
 
-Tests run in the GitHub Actions CI workflow (`.github/workflows/ci.yml`):
+PR CI runs through the reusable validation workflow (`.github/workflows/validate.yml`) and the top-level dispatcher (`.github/workflows/ci.yml`):
 
 ```yaml
-- name: Run tests
-  run: bun test
+jobs:
+  repo-validate:
+    runs-on: ubuntu-latest
+  setup-smoke-matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 ```
 
-Test failures block PR merges when branch protection is enabled.
+The deep E2E matrix runs separately in `.github/workflows/e2e.yml` via `workflow_dispatch` and `schedule`, and uploads the matrix reports as artifacts.

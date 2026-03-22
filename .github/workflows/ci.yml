@@ -12,14 +12,4 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Run tests
-        run: node harness-engineering-orchestrator/scripts/run-tracked-tests.mjs
-
-      - name: Run skill contract check
-        run: node harness-engineering-orchestrator/scripts/check-skill-contract.mjs
+    uses: ./.github/workflows/validate.yml

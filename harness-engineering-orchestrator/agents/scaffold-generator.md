@@ -29,7 +29,7 @@ Dispatched by the Orchestrator when `phase === "SCAFFOLD"`.
 
 ### Ecosystem-Specific Template Selection
 
-Select scaffold templates based on the confirmed tech stack and detected ecosystem. Reference `templates/.github/workflows/` for CI workflow templates matching the project language (TypeScript, Python, Go, Rust, Java, Kotlin).
+Current setup wiring in `scripts/setup/core.ts` writes `templates/.github/workflows/ci.yml.template` and `templates/.github/workflows/release.yml.template` for the published workspace-first Bun / npm / pnpm flow. The language-specific CI templates under `templates/.github/workflows/` are reference material until setup is updated to select them automatically. Do not promise a different CI template path unless the same change also updates `scripts/setup/core.ts`.
 
 ### Group 1: Harness Runtime
 

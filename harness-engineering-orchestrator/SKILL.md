@@ -3,7 +3,7 @@ name: harness-engineering-orchestrator
 description: >
   Repo-backed PRD-to-code orchestration for Claude and Codex.
   Use when the user wants a new app or existing repository run through discovery, architecture, milestones, execution, and validation instead of ad-hoc prompt-only delivery.
-  Supports greenfield and existing codebases across web, iOS, Android, CLI, agent, API, and desktop projects in any language ecosystem (JavaScript/TypeScript, Python, Go, Rust, Java, Kotlin, Swift, Flutter, and more).
+  Supports greenfield and existing codebases across web, iOS, Android, CLI, agent, API, and desktop projects, with first-class workspace-first support for Bun, npm, and pnpm repositories plus reference templates for additional ecosystems.
 ---
 
 # Harness Engineering and Orchestrator
@@ -75,7 +75,13 @@ Its job is to turn an idea or an existing codebase into a controlled delivery lo
 4. a runnable scaffold with Harness runtime files
 5. validated implementation until the project reaches `COMPLETE`
 
-### Changes in v1.8.4
+### Changes in v1.8.6
+
+- Added a reusable repo validation workflow and made both PR CI and release gating call the same validation chain
+- Introduced a dedicated Windows E2E workflow for scheduled or manual deep-matrix coverage with retained reports
+- Standardized contributor verification on `node scripts/validate-repo.mjs` and tightened CI-related contract checks to catch documentation drift earlier
+
+### Changes in v1.8.5
 
 - Switched Bun greenfield scaffolds to a workspace-first monorepo layout rooted in `apps/<surface>` and `packages/shared`
 - Made generated Bun repo entry scripts (`bun run lint/typecheck/test/build`) dispatch through Turborepo while keeping Harness lifecycle commands unchanged

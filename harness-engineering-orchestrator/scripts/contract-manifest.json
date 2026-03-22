@@ -105,6 +105,30 @@
       "file": "references/autoflow-algorithm.md",
       "text": "It does **not** execute phase agents for you."
     },
+    {
+      "file": "SKILL.md",
+      "text": "first-class workspace-first support for Bun, npm, and pnpm repositories"
+    },
+    {
+      "file": "agents/scaffold-generator.md",
+      "text": "The language-specific CI templates under `templates/.github/workflows/` are reference material until setup is updated to select them automatically."
+    },
+    {
+      "file": "references/github-setup.md",
+      "text": "The default workspace-first CI template runs these steps in order:"
+    },
+    {
+      "file": "references/testing-strategy.md",
+      "text": "node scripts/validate-repo.mjs"
+    },
+    {
+      "file": "../CONTRIBUTING.md",
+      "text": "node scripts/validate-repo.mjs"
+    },
+    {
+      "file": "../.github/workflows/validate.yml",
+      "text": "workflow_call:"
+    },
     { "file": "SKILL.md", "text": "name: harness-engineering-orchestrator" },
     { "file": "SKILL.md", "text": "description:" }
   ],
@@ -140,6 +164,22 @@
     {
       "file": "agents/project-discovery.md",
       "text": "\"reason\":\"...\""
+    },
+    {
+      "file": "references/github-setup.md",
+      "text": "The standard CI pipeline runs four stages in order:"
+    },
+    {
+      "file": "references/testing-strategy.md",
+      "text": "**Location:** `e2e/run-matrix.ps1`"
+    },
+    {
+      "file": "agents/scaffold-generator.md",
+      "text": "Reference `templates/.github/workflows/` for CI workflow templates matching the project language (TypeScript, Python, Go, Rust, Java, Kotlin)."
+    },
+    {
+      "file": "SKILL.md",
+      "text": "Supports greenfield and existing codebases across web, iOS, Android, CLI, agent, API, and desktop projects in any language ecosystem"
     }
   ]
 }
