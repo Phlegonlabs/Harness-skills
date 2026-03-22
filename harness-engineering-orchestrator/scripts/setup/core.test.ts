@@ -104,6 +104,11 @@ test("node-npm setup scaffolds a local workspace runner instead of turbo default
 })
 
 test("node-pnpm setup writes pnpm-workspace.yaml alongside the workspace runner", () => {
+  if (!inspectCommandVersion("pnpm").ok) {
+    console.log("Skipping node-pnpm setup smoke: pnpm is not installed in this environment.")
+    return
+  }
+
   const setupPath = resolve(join(import.meta.dir, "..", "harness-setup.ts"))
   const result = Bun.spawnSync(
     [
