@@ -285,6 +285,7 @@ test("autoflow auto-merges review milestones, compacts, and continues to the nex
   expect(runGit(["init", "-b", "main"]).ok).toBe(true)
   expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
   expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["config", "commit.gpgsign", "false"]).ok).toBe(true)
   expect(runGit(["add", "."]).ok).toBe(true)
   expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
 
@@ -375,6 +376,7 @@ test("autoflow stops at deploy review when the current delivery version is fully
   expect(runGit(["init", "-b", "main"]).ok).toBe(true)
   expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
   expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["config", "commit.gpgsign", "false"]).ok).toBe(true)
   expect(runGit(["add", "."]).ok).toBe(true)
   expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
 
@@ -487,6 +489,7 @@ test("completeTask auto-writes a task-level context snapshot when compact runtim
   expect(runGit(["init", "-b", "main"]).ok).toBe(true)
   expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
   expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["config", "commit.gpgsign", "false"]).ok).toBe(true)
   expect(runGit(["add", "."]).ok).toBe(true)
   expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
 
@@ -525,6 +528,7 @@ test("completeTask rejects multi-commit task histories", () => {
   expect(runGit(["init", "-b", "main"]).ok).toBe(true)
   expect(runGit(["config", "user.name", "Harness Test"]).ok).toBe(true)
   expect(runGit(["config", "user.email", "harness@example.com"]).ok).toBe(true)
+  expect(runGit(["config", "commit.gpgsign", "false"]).ok).toBe(true)
   expect(runGit(["add", "."]).ok).toBe(true)
   expect(runGit(["commit", "-m", "chore: bootstrap"]).ok).toBe(true)
 

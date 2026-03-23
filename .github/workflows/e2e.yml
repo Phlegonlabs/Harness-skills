@@ -1,0 +1,36 @@
+name: E2E Matrix
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      RUN_ROOT: ${{ runner.temp }}\harness-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run E2E matrix
+        shell: pwsh
+        run: |
+          ./harness-engineering-orchestrator/scripts/e2e/run-matrix.ps1 -RunRoot $env:RUN_ROOT
+
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUN_ROOT }}\reports
+          if-no-files-found: warn
+          retention-days: 14
